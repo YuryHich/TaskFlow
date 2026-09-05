@@ -35,3 +35,10 @@ d:\C#\pet-project\API\obj\Debug\net10.0\refint\API.dll
 d:\C#\pet-project\API\obj\Debug\net10.0\API.pdb
 d:\C#\pet-project\API\obj\Debug\net10.0\API.genruntimeconfig.cache
 d:\C#\pet-project\API\obj\Debug\net10.0\ref\API.dll
+d:\C#\pet-project\API\bin\Debug\net10.0\Infrastructure.dll
+d:\C#\pet-project\API\bin\Debug\net10.0\Infrastructure.pdb
+D:\C#\pet-project\API\bin\Debug\net10.0\Mapster.dll
+D:\C#\pet-project\API\bin\Debug\net10.0\Mapster.Core.dll
+D:\C#\pet-project\API\bin\Debug\net10.0\Mapster.DependencyInjection.dll
+D:\C#\pet-project\API\bin\Debug\net10.0\FluentValidation.dll
+D:\C#\pet-project\API\bin\Debug\net10.0\FluentValidation.DependencyInjectionExtensions.dll

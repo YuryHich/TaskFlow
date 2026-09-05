@@ -1,9 +1,14 @@
 {
   "version": 2,
-  "dgSpecHash": "1TseHlKLsHg=",
+  "dgSpecHash": "/ICZHd65JLU=",
   "success": true,
-  "projectFilePath": "d:\\C#\\pet-project\\API\\API.csproj",
+  "projectFilePath": "D:\\C#\\pet-project\\API\\API.csproj",
   "expectedPackageFiles": [
+    "C:\\Users\\Yurec\\.nuget\\packages\\fluentvalidation\\12.0.0\\fluentvalidation.12.0.0.nupkg.sha512",
+    "C:\\Users\\Yurec\\.nuget\\packages\\fluentvalidation.dependencyinjectionextensions\\12.0.0\\fluentvalidation.dependencyinjectionextensions.12.0.0.nupkg.sha512",
+    "C:\\Users\\Yurec\\.nuget\\packages\\mapster\\10.0.12\\mapster.10.0.12.nupkg.sha512",
+    "C:\\Users\\Yurec\\.nuget\\packages\\mapster.core\\10.0.12\\mapster.core.10.0.12.nupkg.sha512",
+    "C:\\Users\\Yurec\\.nuget\\packages\\mapster.dependencyinjection\\10.0.12\\mapster.dependencyinjection.10.0.12.nupkg.sha512",
     "C:\\Users\\Yurec\\.nuget\\packages\\microsoft.aspnetcore.openapi\\10.0.5\\microsoft.aspnetcore.openapi.10.0.5.nupkg.sha512",
     "C:\\Users\\Yurec\\.nuget\\packages\\microsoft.openapi\\2.0.0\\microsoft.openapi.2.0.0.nupkg.sha512"
   ],
@@ -12,9 +17,9 @@
       "code": "NU1903",
       "level": "Warning",
       "message": "У пакета \"Microsoft.OpenApi\" 2.0.0 есть известная уязвимость https://github.com/advisories/GHSA-v5pm-xwqc-g5wc (уровень серьезности: высокий уровень)",
-      "projectPath": "d:\\C#\\pet-project\\API\\API.csproj",
+      "projectPath": "D:\\C#\\pet-project\\API\\API.csproj",
       "warningLevel": 1,
-      "filePath": "d:\\C#\\pet-project\\API\\API.csproj",
+      "filePath": "D:\\C#\\pet-project\\API\\API.csproj",
       "libraryId": "Microsoft.OpenApi",
       "targetGraphs": [
         "net10.0"

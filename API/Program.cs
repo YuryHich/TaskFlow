@@ -1,5 +1,30 @@
+using Mapster;
+using Application.DTOs;
+using Application.Interfaces;
+using Application.Mappings;
+using Application.Services;
+using Application.Validators;
+using Domain.Repositories;
+using FluentValidation;
+using Infrastructure.Repositories;
+
 var builder = WebApplication.CreateBuilder(args);
 
+MappingConfig.ConfigureMappings();
+TypeAdapterConfig.GlobalSettings.Scan(typeof(MappingConfig).Assembly);
+
+builder.Services.AddMapster();
+builder.Services.AddValidatorsFromAssemblyContaining<CreateProjectValidator>();
+builder.Services.AddScoped<IProjectService, ProjectService>();
+builder.Services.AddScoped<ITaskService, TaskService>();
+builder.Services.AddScoped<ICommentService, CommentService>();
+builder.Services.AddScoped<ITagService, TagService>();
+builder.Services.AddScoped<IUserService, UserService>();
+builder.Services.AddSingleton<IProjectRepository, InMemoryProjectRepository>();
+builder.Services.AddSingleton<ITaskRepository, InMemoryTaskRepository>();
+builder.Services.AddSingleton<ICommentRepository, InMemoryCommentRepository>();
+builder.Services.AddSingleton<ITagRepository, InMemoryTagRepository>();
+builder.Services.AddSingleton<IUserRepository, InMemoryUserRepository>();
 builder.Services.AddControllers();
 builder.Services.AddOpenApi();
 
@@ -14,28 +39,8 @@ if (app.Environment.IsDevelopment())
 app.UseHttpsRedirection();
 app.MapControllers();
 
-var summaries = new[]
-{
-    "Freezing", "Bracing", "Chilly", "Cool", "Mild", "Warm", "Balmy", "Hot", "Sweltering", "Scorching"
-};
 
-app.MapGet("/weatherforecast", () =>
-{
-    var forecast =  Enumerable.Range(1, 5).Select(index =>
-        new WeatherForecast
-        (
-            DateOnly.FromDateTime(DateTime.Now.AddDays(index)),
-            Random.Shared.Next(-20, 55),
-            summaries[Random.Shared.Next(summaries.Length)]
-        ))
-        .ToArray();
-    return forecast;
-})
-.WithName("GetWeatherForecast");
 
 app.Run();
 
-record WeatherForecast(DateOnly Date, int TemperatureC, string? Summary)
-{
-    public int TemperatureF => 32 + (int)(TemperatureC / 0.5556);
-}
+

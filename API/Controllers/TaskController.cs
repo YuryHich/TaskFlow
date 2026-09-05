@@ -1,5 +1,6 @@
-using Domain.Comments;
-using Domain.Tasks;
+using Application.DTOs;
+using Application.Interfaces;
+using FluentValidation;
 using Microsoft.AspNetCore.Mvc;
 
 namespace API.Controllers;
@@ -9,57 +10,114 @@ namespace API.Controllers;
 public class TaskController : ControllerBase
 {
     private readonly ILogger<TaskController> _logger;
+    private readonly ITaskService _taskService;
+    private readonly ICommentService _commentService;
+    private readonly IValidator<CreateTaskDto> _createTaskValidator;
+    private readonly IValidator<UpdateTaskDto> _updateTaskValidator;
+    private readonly IValidator<CreateCommentDto> _createCommentValidator;
 
-    public TaskController(ILogger<TaskController> logger)
+    public TaskController(
+        ILogger<TaskController> logger,
+        ITaskService taskService,
+        ICommentService commentService,
+        IValidator<CreateTaskDto> createTaskValidator,
+        IValidator<UpdateTaskDto> updateTaskValidator,
+        IValidator<CreateCommentDto> createCommentValidator)
     {
         _logger = logger;
+        _taskService = taskService;
+        _commentService = commentService;
+        _createTaskValidator = createTaskValidator;
+        _updateTaskValidator = updateTaskValidator;
+        _createCommentValidator = createCommentValidator;
     }
 
     [HttpGet]
     public async Task<IActionResult> GetTasks()
     {
         _logger.LogInformation("Fetching tasks.");
-        // Implementation for fetching tasks
-        return Ok();
+        var tasks = await _taskService.GetTasksAsync();
+        return Ok(tasks);
     }
 
     [HttpGet("{id:guid}")]
     public async Task<IActionResult> GetTask(Guid id)
     {
         _logger.LogInformation("Fetching task with ID: {Id}", id);
-        // Implementation for fetching a specific task
-        return Ok();
+        var task = await _taskService.GetTaskByIdAsync(id);
+        return task is null ? NotFound() : Ok(task);
     }
 
     [HttpGet("{taskId:guid}/comments")]
     public async Task<IActionResult> GetTaskComments(Guid taskId)
     {
         _logger.LogInformation("Fetching comments for task with ID: {TaskId}", taskId);
-        // Implementation for fetching comments of a task
-        return Ok();
+        var task = await _taskService.GetTaskByIdAsync(taskId);
+        if (task is null)
+        {
+            return NotFound();
+        }
+
+        var comments = await _taskService.GetTaskCommentsAsync(taskId);
+        return Ok(comments);
     }
 
     [HttpPost]
     public async Task<IActionResult> CreateTask([FromBody] CreateTaskDto task)
     {
         _logger.LogInformation("Creating a new task.");
-        // Implementation for creating a new task
-        return CreatedAtAction(nameof(GetTask), new { id = Guid.Empty }, task);
+        var validationResult = await _createTaskValidator.ValidateAsync(task);
+        if (!validationResult.IsValid)
+        {
+            return BadRequest(validationResult.Errors);
+        }
+
+        var createdTask = await _taskService.CreateTaskAsync(task);
+        return CreatedAtAction(nameof(GetTask), new { id = createdTask.Id }, createdTask);
     }
 
     [HttpPost("{taskId:guid}/comments")]
     public async Task<IActionResult> CreateTaskComment(Guid taskId, [FromBody] CreateCommentDto comment)
     {
         _logger.LogInformation("Creating a comment for task with ID: {TaskId}", taskId);
-        // Implementation for creating a comment for a task
-        return CreatedAtAction(nameof(GetTaskComments), new { taskId }, comment);
+        var task = await _taskService.GetTaskByIdAsync(taskId);
+        if (task is null)
+        {
+            return NotFound();
+        }
+
+        if (comment.TaskId != taskId)
+        {
+            return BadRequest("TaskId in the route and request body must match.");
+        }
+
+        var validationResult = await _createCommentValidator.ValidateAsync(comment);
+        if (!validationResult.IsValid)
+        {
+            return BadRequest(validationResult.Errors);
+        }
+
+        var createdComment = await _commentService.CreateCommentAsync(comment);
+        return CreatedAtAction(nameof(GetTaskComments), new { taskId }, createdComment);
     }
 
     [HttpPut("{id:guid}")]
     public async Task<IActionResult> UpdateTask(Guid id, [FromBody] UpdateTaskDto task)
     {
         _logger.LogInformation("Updating task with ID: {Id}", id);
-        // Implementation for updating a task
+        var existingTask = await _taskService.GetTaskByIdAsync(id);
+        if (existingTask is null)
+        {
+            return NotFound();
+        }
+
+        var validationResult = await _updateTaskValidator.ValidateAsync(task);
+        if (!validationResult.IsValid)
+        {
+            return BadRequest(validationResult.Errors);
+        }
+
+        await _taskService.UpdateTaskAsync(id, task);
         return NoContent();
     }
 
@@ -67,7 +125,13 @@ public class TaskController : ControllerBase
     public async Task<IActionResult> DeleteTask(Guid id)
     {
         _logger.LogInformation("Deleting task with ID: {Id}", id);
-        // Implementation for deleting a task
+        var existingTask = await _taskService.GetTaskByIdAsync(id);
+        if (existingTask is null)
+        {
+            return NotFound();
+        }
+
+        await _taskService.DeleteTaskAsync(id);
         return NoContent();
     }
 }

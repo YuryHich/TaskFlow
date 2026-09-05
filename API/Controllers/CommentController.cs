@@ -1,4 +1,6 @@
-using Domain.Comments;
+using Application.DTOs;
+using Application.Interfaces;
+using FluentValidation;
 using Microsoft.AspNetCore.Mvc;
 
 namespace API.Controllers;
@@ -8,41 +10,69 @@ namespace API.Controllers;
 public class CommentController : ControllerBase
 {
     private readonly ILogger<CommentController> _logger;
+    private readonly ICommentService _commentService;
+    private readonly IValidator<CreateCommentDto> _createCommentValidator;
+    private readonly IValidator<UpdateCommentDto> _updateCommentValidator;
 
-    public CommentController(ILogger<CommentController> logger)
+    public CommentController(
+        ILogger<CommentController> logger,
+        ICommentService commentService,
+        IValidator<CreateCommentDto> createCommentValidator,
+        IValidator<UpdateCommentDto> updateCommentValidator)
     {
         _logger = logger;
+        _commentService = commentService;
+        _createCommentValidator = createCommentValidator;
+        _updateCommentValidator = updateCommentValidator;
     }
 
     [HttpGet]
     public async Task<IActionResult> GetComments()
     {
         _logger.LogInformation("Fetching comments.");
-        // Implementation for fetching comments
-        return Ok();
+        var comments = await _commentService.GetCommentsAsync();
+        return Ok(comments);
     }
 
     [HttpGet("{id:guid}")]
     public async Task<IActionResult> GetComment(Guid id)
     {
         _logger.LogInformation("Fetching comment with ID: {Id}", id);
-        // Implementation for fetching a specific comment
-        return Ok();
+        var comment = await _commentService.GetCommentByIdAsync(id);
+        return comment is null ? NotFound() : Ok(comment);
     }
 
     [HttpPost]
     public async Task<IActionResult> CreateComment([FromBody] CreateCommentDto comment)
     {
         _logger.LogInformation("Creating a new comment.");
-        // Implementation for creating a new comment
-        return CreatedAtAction(nameof(GetComment), new { id = Guid.Empty }, comment);
+        var validationResult = await _createCommentValidator.ValidateAsync(comment);
+        if (!validationResult.IsValid)
+        {
+            return BadRequest(validationResult.Errors);
+        }
+
+        var createdComment = await _commentService.CreateCommentAsync(comment);
+        return CreatedAtAction(nameof(GetComment), new { id = createdComment.Id }, createdComment);
     }
 
     [HttpPut("{id:guid}")]
     public async Task<IActionResult> UpdateComment(Guid id, [FromBody] UpdateCommentDto comment)
     {
         _logger.LogInformation("Updating comment with ID: {Id}", id);
-        // Implementation for updating a comment
+        var existingComment = await _commentService.GetCommentByIdAsync(id);
+        if (existingComment is null)
+        {
+            return NotFound();
+        }
+
+        var validationResult = await _updateCommentValidator.ValidateAsync(comment);
+        if (!validationResult.IsValid)
+        {
+            return BadRequest(validationResult.Errors);
+        }
+
+        await _commentService.UpdateCommentAsync(id, comment);
         return NoContent();
     }
 
@@ -50,7 +80,13 @@ public class CommentController : ControllerBase
     public async Task<IActionResult> DeleteComment(Guid id)
     {
         _logger.LogInformation("Deleting comment with ID: {Id}", id);
-        // Implementation for deleting a comment
+        var existingComment = await _commentService.GetCommentByIdAsync(id);
+        if (existingComment is null)
+        {
+            return NotFound();
+        }
+
+        await _commentService.DeleteCommentAsync(id);
         return NoContent();
     }
 }
