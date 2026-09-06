@@ -13,3 +13,4 @@ d:\C#\pet-project\Application\obj\Debug\net10.0\Application.dll
 d:\C#\pet-project\Application\obj\Debug\net10.0\refint\Application.dll
 d:\C#\pet-project\Application\obj\Debug\net10.0\Application.pdb
 d:\C#\pet-project\Application\obj\Debug\net10.0\ref\Application.dll
+d:\C#\pet-project\Application\obj\Debug\net10.0\Application.sourcelink.json

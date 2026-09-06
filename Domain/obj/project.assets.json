@@ -13,11 +13,11 @@
   "project": {
     "version": "1.0.0",
     "restore": {
-      "projectUniqueName": "d:\\C#\\pet-project\\Domain\\Domain.csproj",
+      "projectUniqueName": "D:\\C#\\pet-project\\Domain\\Domain.csproj",
       "projectName": "Domain",
-      "projectPath": "d:\\C#\\pet-project\\Domain\\Domain.csproj",
+      "projectPath": "D:\\C#\\pet-project\\Domain\\Domain.csproj",
       "packagesPath": "C:\\Users\\Yurec\\.nuget\\packages\\",
-      "outputPath": "d:\\C#\\pet-project\\Domain\\obj\\",
+      "outputPath": "D:\\C#\\pet-project\\Domain\\obj\\",
       "projectStyle": "PackageReference",
       "configFilePaths": [
         "C:\\Users\\Yurec\\AppData\\Roaming\\NuGet\\NuGet.Config"

@@ -9,3 +9,4 @@ d:\C#\pet-project\Domain\obj\Debug\net10.0\Domain.dll
 d:\C#\pet-project\Domain\obj\Debug\net10.0\refint\Domain.dll
 d:\C#\pet-project\Domain\obj\Debug\net10.0\Domain.pdb
 d:\C#\pet-project\Domain\obj\Debug\net10.0\ref\Domain.dll
+D:\C#\pet-project\Domain\obj\Debug\net10.0\Domain.sourcelink.json

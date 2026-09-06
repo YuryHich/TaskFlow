@@ -1,0 +1,13 @@
+{
+  "Servers": {
+    "1": {
+      "Name": "TaskFlow Postgres",
+      "Group": "Servers",
+      "Host": "taskflow-postgres",
+      "Port": 5432,
+      "MaintenanceDB": "TaskFlowDB",
+      "Username": "postgres",
+      "SSLMode": "prefer"
+    }
+  }
+}

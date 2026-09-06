@@ -1,0 +1,39 @@
+services:
+  taskflow-postgres:
+    container_name: taskflow-postgres
+    image: postgres:latest
+    environment:
+      POSTGRES_DB: TaskFlowDB
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: password
+    volumes:
+      - taskflow_pgdata:/var/lib/postgresql
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d TaskFlowDB"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  taskflow-pgadmin:
+    container_name: taskflow-pgadmin
+    image: dpage/pgadmin4:latest
+    environment:
+      PGADMIN_DEFAULT_EMAIL: admin@admin.com
+      PGADMIN_DEFAULT_PASSWORD: admin
+      PGADMIN_CONFIG_SERVER_MODE: 'False'
+      PGADMIN_CONFIG_MASTER_PASSWORD_REQUIRED: 'False'
+    ports:
+      - "5050:80"
+    volumes:
+      - taskflow_pgadmin:/var/lib/pgadmin
+      - ./servers.json:/pgadmin4/servers.json
+    depends_on:
+      taskflow-postgres:
+        condition: service_healthy
+    restart: unless-stopped
+
+volumes:
+  taskflow_pgdata:
+  taskflow_pgadmin:
