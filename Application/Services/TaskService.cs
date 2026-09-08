@@ -1,40 +1,80 @@
+using Application.Auth.Authorization;
 using Application.DTOs;
 using Application.Interfaces;
 using Domain.Models;
 using Domain.Repositories;
 using Mapster;
+using Microsoft.AspNetCore.Authorization;
 
 namespace Application.Services;
 
 public class TaskService : ITaskService
 {
     private readonly ITaskRepository _taskRepository;
+    private readonly IProjectRepository _projectRepository;
+    private readonly ICurrentUser _currentUser;
+    private readonly IAuthorizationService _authorizationService;
 
-    public TaskService(ITaskRepository taskRepository)
+    public TaskService(
+        ITaskRepository taskRepository,
+        IProjectRepository projectRepository,
+        ICurrentUser currentUser,
+        IAuthorizationService authorizationService)
     {
         _taskRepository = taskRepository;
+        _projectRepository = projectRepository;
+        _currentUser = currentUser;
+        _authorizationService = authorizationService;
     }
 
     public async Task<IEnumerable<TaskDto>> GetTasksAsync()
     {
         var tasks = await _taskRepository.GetTasksAsync();
-        return tasks.Adapt<IEnumerable<TaskDto>>();
+        if (_currentUser.IsAdminOrManager)
+        {
+            return tasks.Adapt<IEnumerable<TaskDto>>();
+        }
+        else
+        {
+            var projects = await _projectRepository.GetProjectsAsync();
+            var ownedProjectIds = projects
+                .Where(p => p.OwnerId == _currentUser.UserId)
+                .Select(p => p.Id)
+                .ToHashSet();
+
+            return tasks
+                .Where(t => t.AssigneeId == _currentUser.UserId || ownedProjectIds.Contains(t.ProjectId))
+                .Adapt<IEnumerable<TaskDto>>();
+        }
     }
 
     public async Task<TaskDto?> GetTaskByIdAsync(Guid id)
     {
         var task = await _taskRepository.GetTaskByIdAsync(id);
-        return task?.Adapt<TaskDto>();
+        if (task is null) throw new NotFoundException("Task not found");
+        var authorizationResult = await _authorizationService.AuthorizeTaskAccessAsync(_currentUser.User, task);
+        if (!authorizationResult.Succeeded)
+        throw new ForbiddenException("You are not authorized to access this task");
+        return task.Adapt<TaskDto>();
     }
 
     public async Task<IEnumerable<CommentDto>> GetTaskCommentsAsync(Guid taskId)
     {
+        var task = await _taskRepository.GetTaskByIdAsync(taskId);
+         if (task is null) throw new NotFoundException("Task not found");
+         var authorizationResult = await _authorizationService.AuthorizeTaskAccessAsync(_currentUser.User, task);
+        if (!authorizationResult.Succeeded) throw new ForbiddenException("You are not authorized to access this task");
         var comments = await _taskRepository.GetTaskCommentsAsync(taskId);
         return comments.Adapt<IEnumerable<CommentDto>>();
     }
 
     public async Task<TaskDto> CreateTaskAsync(CreateTaskDto task)
     {
+        var project = await _projectRepository.GetProjectByIdAsync(task.ProjectId);
+        if (project is null) throw new NotFoundException("Project not found");
+        var authorizationResult = await _authorizationService.AuthorizeProjectOwnerAsync(_currentUser.User, project);
+        if (!authorizationResult.Succeeded) throw new ForbiddenException("You are not authorized to create a task in this project");
+
         var taskEntity = task.Adapt<WorkTask>();
         taskEntity.Id = Guid.NewGuid();
         taskEntity.CreatedAt = DateTime.UtcNow;
@@ -48,8 +88,11 @@ public class TaskService : ITaskService
         var taskEntity = await _taskRepository.GetTaskByIdAsync(id);
         if (taskEntity is null)
         {
-            return;
+            throw new NotFoundException("Task not found");
         }
+
+        var authorizationResult = await _authorizationService.AuthorizeTaskAccessAsync(_currentUser.User, taskEntity);
+        if (!authorizationResult.Succeeded) throw new ForbiddenException("You are not authorized to update this task");
 
         task.Adapt(taskEntity);
         await _taskRepository.UpdateTaskAsync(taskEntity);
@@ -57,6 +100,10 @@ public class TaskService : ITaskService
 
     public async Task DeleteTaskAsync(Guid id)
     {
+        var taskEntity = await _taskRepository.GetTaskByIdAsync(id);
+        if (taskEntity is null) throw new NotFoundException("Task not found");
+        var authorizationResult = await _authorizationService.AuthorizeTaskAccessAsync(_currentUser.User, taskEntity);
+        if (!authorizationResult.Succeeded) throw new ForbiddenException("You are not authorized to delete this task");
         await _taskRepository.DeleteTaskAsync(id);
     }
 }

@@ -2,8 +2,10 @@
 **/bin/
 **/obj/
 
-# Visual Studio / VS Code local files
+# Visual Studio / Rider / VS Code local files
 .vs/
+.idea/
+*.DotSettings.user
 .vscode/*
 !.vscode/extensions.json
 !.vscode/tasks.json
@@ -20,10 +22,16 @@
 *.env
 *.env.*
 !*.env.example
+secrets.json
 
-# Test and tooling artifacts
+# Local sprint roadmaps / study notes (not part of the product)
+*Sprint*Roadmap.md
+
+# Test, publish, logs
 TestResults/
 coverage/
+publish/
+*.log
 *.nupkg
 
 # OS files

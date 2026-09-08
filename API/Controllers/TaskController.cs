@@ -45,19 +45,13 @@ public class TaskController : ControllerBase
     {
         _logger.LogInformation("Fetching task with ID: {Id}", id);
         var task = await _taskService.GetTaskByIdAsync(id);
-        return task is null ? NotFound() : Ok(task);
+        return Ok(task);
     }
 
     [HttpGet("{taskId:guid}/comments")]
     public async Task<IActionResult> GetTaskComments(Guid taskId)
     {
         _logger.LogInformation("Fetching comments for task with ID: {TaskId}", taskId);
-        var task = await _taskService.GetTaskByIdAsync(taskId);
-        if (task is null)
-        {
-            return NotFound();
-        }
-
         var comments = await _taskService.GetTaskCommentsAsync(taskId);
         return Ok(comments);
     }
@@ -80,12 +74,6 @@ public class TaskController : ControllerBase
     public async Task<IActionResult> CreateTaskComment(Guid taskId, [FromBody] CreateCommentDto comment)
     {
         _logger.LogInformation("Creating a comment for task with ID: {TaskId}", taskId);
-        var task = await _taskService.GetTaskByIdAsync(taskId);
-        if (task is null)
-        {
-            return NotFound();
-        }
-
         if (comment.TaskId != taskId)
         {
             return BadRequest("TaskId in the route and request body must match.");
@@ -105,12 +93,6 @@ public class TaskController : ControllerBase
     public async Task<IActionResult> UpdateTask(Guid id, [FromBody] UpdateTaskDto task)
     {
         _logger.LogInformation("Updating task with ID: {Id}", id);
-        var existingTask = await _taskService.GetTaskByIdAsync(id);
-        if (existingTask is null)
-        {
-            return NotFound();
-        }
-
         var validationResult = await _updateTaskValidator.ValidateAsync(task);
         if (!validationResult.IsValid)
         {
@@ -125,12 +107,6 @@ public class TaskController : ControllerBase
     public async Task<IActionResult> DeleteTask(Guid id)
     {
         _logger.LogInformation("Deleting task with ID: {Id}", id);
-        var existingTask = await _taskService.GetTaskByIdAsync(id);
-        if (existingTask is null)
-        {
-            return NotFound();
-        }
-
         await _taskService.DeleteTaskAsync(id);
         return NoContent();
     }

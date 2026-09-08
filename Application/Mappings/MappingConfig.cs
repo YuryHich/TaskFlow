@@ -64,22 +64,28 @@ namespace Application.Mappings;
             TypeAdapterConfig<User, UserDto>.NewConfig()
                 .Map(dest => dest.Id, src => src.Id)
                 .Map(dest => dest.Email, src => src.Email)
-                .Map(dest => dest.FullName, src => src.FullName)
+                .Map(dest => dest.Username, src => src.Username)
                 .Map(dest => dest.CreatedAt, src => src.CreatedAt);
 
-            TypeAdapterConfig<CreateUserDto, User>.NewConfig()
+            TypeAdapterConfig<RegisterRequest, User>.NewConfig()
                 .Ignore(dest => dest.Id)
                 .Ignore(dest => dest.CreatedAt)
+                .Ignore(dest => dest.PasswordHash)
+                .Ignore(dest => dest.Role)
                 .Ignore(dest => dest.OwnedProjects)
                 .Ignore(dest => dest.AssignedTasks)
-                .Ignore(dest => dest.Comments);
+                .Ignore(dest => dest.Comments)
+                .Ignore(dest => dest.RefreshTokens);
 
             TypeAdapterConfig<UpdateUserDto, User>.NewConfig()
                 .Ignore(dest => dest.Id)
                 .Ignore(dest => dest.CreatedAt)
+                .Ignore(dest => dest.PasswordHash)
+                .Ignore(dest => dest.Role)
                 .Ignore(dest => dest.OwnedProjects)
                 .Ignore(dest => dest.AssignedTasks)
-                .Ignore(dest => dest.Comments);
+                .Ignore(dest => dest.Comments)
+                .Ignore(dest => dest.RefreshTokens);
 
             // ============ COMMENT ============
             TypeAdapterConfig<Comment, CommentDto>.NewConfig()

@@ -18,6 +18,7 @@ namespace Infrastructure.Persistence;
         public DbSet<Domain.Models.WorkTask> Tasks { get; set; } = null!;
         public DbSet<Domain.Models.Tag> Tags { get; set; } = null!;
         public DbSet<Domain.Models.Comment> Comments { get; set; } = null!;
+        public DbSet<Domain.Models.RefreshToken> RefreshTokens { get; set; } = null!;
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {

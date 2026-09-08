@@ -13,8 +13,5 @@ public class CreateProjectValidator : AbstractValidator<CreateProjectDto>
 
         RuleFor(project => project.Description)
             .MaximumLength(1000);
-
-        RuleFor(project => project.OwnerId)
-            .NotEmpty();
     }
 }

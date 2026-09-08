@@ -26,6 +26,18 @@ public class EfUserRepository : IUserRepository
         return await _context.Users.FindAsync(id);
     }
 
+    public async Task<User?> GetByEmailAsync(string email)
+    {
+        return await _context.Users
+            .FirstOrDefaultAsync(user => user.Email == email);
+    }
+
+    public async Task<User?> GetByUserNameAsync(string username)
+    {
+        return await _context.Users
+            .FirstOrDefaultAsync(user => user.Username == username);
+    }
+
     public async Task CreateUserAsync(User user)
     {
         _context.Users.Add(user);

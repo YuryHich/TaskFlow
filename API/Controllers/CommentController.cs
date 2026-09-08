@@ -39,7 +39,7 @@ public class CommentController : ControllerBase
     {
         _logger.LogInformation("Fetching comment with ID: {Id}", id);
         var comment = await _commentService.GetCommentByIdAsync(id);
-        return comment is null ? NotFound() : Ok(comment);
+        return Ok(comment);
     }
 
     [HttpPost]
@@ -60,12 +60,6 @@ public class CommentController : ControllerBase
     public async Task<IActionResult> UpdateComment(Guid id, [FromBody] UpdateCommentDto comment)
     {
         _logger.LogInformation("Updating comment with ID: {Id}", id);
-        var existingComment = await _commentService.GetCommentByIdAsync(id);
-        if (existingComment is null)
-        {
-            return NotFound();
-        }
-
         var validationResult = await _updateCommentValidator.ValidateAsync(comment);
         if (!validationResult.IsValid)
         {
@@ -80,12 +74,6 @@ public class CommentController : ControllerBase
     public async Task<IActionResult> DeleteComment(Guid id)
     {
         _logger.LogInformation("Deleting comment with ID: {Id}", id);
-        var existingComment = await _commentService.GetCommentByIdAsync(id);
-        if (existingComment is null)
-        {
-            return NotFound();
-        }
-
         await _commentService.DeleteCommentAsync(id);
         return NoContent();
     }

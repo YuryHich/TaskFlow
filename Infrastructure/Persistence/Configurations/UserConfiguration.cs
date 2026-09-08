@@ -1,17 +1,12 @@
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Threading.Tasks;
-using Microsoft.EntityFrameworkCore.Metadata.Builders;
-using Microsoft.EntityFrameworkCore.Metadata;
-using Microsoft.EntityFrameworkCore;
 using Domain.Models;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Metadata.Builders;
 
 namespace Infrastructure.Persistence.Configurations;
 
 public class UserConfiguration : IEntityTypeConfiguration<User>
 {
-     public void Configure(EntityTypeBuilder<User> builder)
+    public void Configure(EntityTypeBuilder<User> builder)
     {
         builder.ToTable("Users");
 
@@ -21,14 +16,31 @@ public class UserConfiguration : IEntityTypeConfiguration<User>
             .IsRequired()
             .HasMaxLength(320);
 
-        builder.Property(user => user.FullName)
+        builder.Property(user => user.Username)
             .IsRequired()
-            .HasMaxLength(200);
+            .HasMaxLength(100);
+
+        builder.Property(user => user.PasswordHash)
+            .IsRequired()
+            .HasMaxLength(500);
+
+        builder.Property(user => user.Role)
+            .IsRequired()
+            .HasConversion<string>()
+            .HasMaxLength(30);
 
         builder.Property(user => user.CreatedAt)
             .IsRequired();
 
         builder.HasIndex(user => user.Email)
             .IsUnique();
+
+        builder.HasIndex(user => user.Username)
+            .IsUnique();
+
+        builder.HasMany(user => user.RefreshTokens)
+            .WithOne(token => token.User)
+            .HasForeignKey(token => token.UserId)
+            .OnDelete(DeleteBehavior.Cascade);
     }
 }

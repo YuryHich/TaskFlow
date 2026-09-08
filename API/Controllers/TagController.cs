@@ -1,6 +1,8 @@
+using Application.Auth.Authorization;
 using Application.DTOs;
 using Application.Interfaces;
 using FluentValidation;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
 namespace API.Controllers;
@@ -43,6 +45,7 @@ public class TagController : ControllerBase
     }
 
     [HttpPost]
+    [Authorize(Policy = AuthorizationPolicies.CanManageProjects)]
     public async Task<IActionResult> CreateTag([FromBody] CreateTagDto tag)
     {
         _logger.LogInformation("Creating a new tag.");
@@ -57,6 +60,7 @@ public class TagController : ControllerBase
     }
 
     [HttpPut("{id:guid}")]
+    [Authorize(Policy = AuthorizationPolicies.CanManageProjects)]
     public async Task<IActionResult> UpdateTag(Guid id, [FromBody] UpdateTagDto tag)
     {
         _logger.LogInformation("Updating tag with ID: {Id}", id);
@@ -77,6 +81,7 @@ public class TagController : ControllerBase
     }
 
     [HttpDelete("{id:guid}")]
+    [Authorize(Policy = AuthorizationPolicies.CanManageProjects)]
     public async Task<IActionResult> DeleteTag(Guid id)
     {
         _logger.LogInformation("Deleting tag with ID: {Id}", id);

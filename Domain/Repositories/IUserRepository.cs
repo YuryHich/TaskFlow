@@ -6,6 +6,8 @@ namespace Domain.Repositories
     {
         public Task<IEnumerable<User>> GetUsersAsync();
         public Task<User?> GetUserByIdAsync(Guid id);
+        public Task<User?> GetByEmailAsync(string email);
+        public Task<User?> GetByUserNameAsync(string username);
         public Task CreateUserAsync(User user);
         public Task UpdateUserAsync(User user);
         public Task DeleteUserAsync(Guid id);

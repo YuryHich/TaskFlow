@@ -18,6 +18,18 @@ public class InMemoryUserRepository : IUserRepository
         return Task.FromResult(user);
     }
 
+    public Task<User?> GetByEmailAsync(string email)
+    {
+        var user = _users.FirstOrDefault(u => u.Email == email);
+        return Task.FromResult(user);
+    }
+
+    public Task<User?> GetByUserNameAsync(string username)
+    {
+        var user = _users.FirstOrDefault(u => u.Username == username);
+        return Task.FromResult(user);
+    }
+
     public Task CreateUserAsync(User user)
     {
         _users.Add(user);
@@ -30,7 +42,9 @@ public class InMemoryUserRepository : IUserRepository
         if (existingUser is not null)
         {
             existingUser.Email = user.Email;
-            existingUser.FullName = user.FullName;
+            existingUser.Username = user.Username;
+            existingUser.PasswordHash = user.PasswordHash;
+            existingUser.Role = user.Role;
         }
 
         return Task.CompletedTask;

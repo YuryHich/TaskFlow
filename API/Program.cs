@@ -1,14 +1,26 @@
+using System.Net;
+using System.Security.Claims;
+using System.Text;
+using Application.Auth;
+using Application.Auth.Authorization;
 using Application.DTOs;
 using Application.Interfaces;
 using Application.Mappings;
 using Application.Services;
 using Application.Validators;
+using API.Auth;
+using API.Filters;
+using Domain.Models;
 using Domain.Repositories;
 using FluentValidation;
 using Infrastructure.Persistence;
 using Infrastructure.Repositories;
 using Mapster;
+using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.IdentityModel.Tokens;
 
 
 var builder = WebApplication.CreateBuilder(args);
@@ -30,8 +42,49 @@ builder.Services.AddScoped<ITaskRepository, EfTaskRepository>();
 builder.Services.AddScoped<ICommentRepository, EfCommentRepository>();
 builder.Services.AddScoped<ITagRepository, EfTagRepository>();
 builder.Services.AddScoped<IUserRepository, EfUserRepository>();
-builder.Services.AddControllers();
+builder.Services.AddScoped<IRefreshTokenRepository, EfRefreshTokenRepository>();
+builder.Services.AddScoped<IAuthService, AuthService>();
+builder.Services.AddScoped<IJwtService, JwtService>();
+builder.Services.AddHttpContextAccessor();
+builder.Services.AddScoped<ICurrentUser, CurrentUser>();
+builder.Services.AddScoped<IAuthorizationHandler, ProjectOwnerHandler>();
+builder.Services.AddScoped<IAuthorizationHandler, TaskAccessHandler>();
+builder.Services.Configure<JwtOptions>(builder.Configuration.GetSection("Jwt"));
+builder.Services.AddScoped<IPasswordHasher<User>, PasswordHasher<User>>();
+builder.Services.AddControllers(options => options.Filters.Add<HttpExceptionFilter>());
 builder.Services.AddOpenApi();
+builder.Services.AddSwaggerGen();
+builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
+    .AddJwtBearer(options =>
+    {
+        options.TokenValidationParameters = new TokenValidationParameters
+        {
+            ValidateIssuer = true,
+            ValidateAudience = true,
+            ValidateLifetime = true,
+            ValidateIssuerSigningKey = true,
+            ValidIssuer = builder.Configuration["Jwt:Issuer"],
+            ValidAudience = builder.Configuration["Jwt:Audience"],
+            IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(builder.Configuration["Jwt:Key"]!)),
+            ClockSkew = TimeSpan.Zero,
+            RoleClaimType = ClaimTypes.Role
+        };
+    });
+builder.Services.AddAuthorization(options =>
+{
+    options.FallbackPolicy = new AuthorizationPolicyBuilder()
+    .RequireAuthenticatedUser()
+    .Build();
+
+    options.AddPolicy(AuthorizationPolicies.CanManageProjects, policy =>
+        policy.RequireRole(nameof(UserRole.Admin), nameof(UserRole.Manager)));
+    options.AddPolicy(AuthorizationPolicies.CanDeleteProjects, policy =>
+        policy.RequireRole(nameof(UserRole.Admin), nameof(UserRole.Manager)));
+    options.AddPolicy(AuthorizationPolicies.ProjectOwner, policy =>
+        policy.Requirements.Add(new ProjectOwnerRequirement()));
+    options.AddPolicy(AuthorizationPolicies.TaskAccess, policy =>
+        policy.Requirements.Add(new TaskAccessRequirement()));
+});
 
 var app = builder.Build();
 
@@ -39,9 +92,13 @@ var app = builder.Build();
 if (app.Environment.IsDevelopment())
 {
     app.MapOpenApi();
+    app.UseSwagger();
+    app.UseSwaggerUI();
 }
 
 app.UseHttpsRedirection();
+app.UseAuthentication();
+app.UseAuthorization();
 app.MapControllers();
 
 

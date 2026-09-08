@@ -10,9 +10,6 @@ public class CreateCommentValidator : AbstractValidator<CreateCommentDto>
         RuleFor(comment => comment.TaskId)
             .NotEmpty();
 
-        RuleFor(comment => comment.AuthorId)
-            .NotEmpty();
-
         RuleFor(comment => comment.Content)
             .NotEmpty()
             .MaximumLength(2000);

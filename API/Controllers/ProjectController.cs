@@ -1,6 +1,8 @@
+using Application.Auth.Authorization;
 using Application.DTOs;
 using Application.Interfaces;
 using FluentValidation;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
 namespace API.Controllers;
@@ -40,10 +42,6 @@ public class ProjectController : ControllerBase
     {
         _logger.LogInformation("Fetching project with ID: {Id}", id);
         var project = await _projectService.GetProjectByIdAsync(id);
-        if (project == null)
-        {
-            return NotFound();
-        }
         return Ok(project);
     }
 
@@ -56,6 +54,7 @@ public class ProjectController : ControllerBase
     }
 
     [HttpPost]
+    [Authorize(Policy = AuthorizationPolicies.CanManageProjects)]
     public async Task<IActionResult> CreateProject([FromBody] CreateProjectDto project)
     {
         _logger.LogInformation("Creating a new project.");
@@ -73,12 +72,6 @@ public class ProjectController : ControllerBase
     public async Task<IActionResult> UpdateProject(Guid id, [FromBody] UpdateProjectDto project)
     {
         _logger.LogInformation("Updating project with ID: {Id}", id);
-        var existingProject = await _projectService.GetProjectByIdAsync(id);
-        if (existingProject == null)
-        {
-            return NotFound();
-        }
-
         var validationResult = await _updateProjectValidator.ValidateAsync(project);
         if (!validationResult.IsValid)
         {
@@ -90,14 +83,10 @@ public class ProjectController : ControllerBase
     }
 
     [HttpDelete("{id:guid}")]
+    [Authorize(Policy = AuthorizationPolicies.CanDeleteProjects)]
     public async Task<IActionResult> DeleteProject(Guid id)
     {
         _logger.LogInformation("Deleting project with ID: {Id}", id);
-        var existingProject = await _projectService.GetProjectByIdAsync(id);
-        if (existingProject == null)
-        {
-            return NotFound();
-        }
         await _projectService.DeleteProjectAsync(id);
         return NoContent();
     }

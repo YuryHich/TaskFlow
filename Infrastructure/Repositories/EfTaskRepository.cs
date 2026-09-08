@@ -18,6 +18,7 @@ public class EfTaskRepository : ITaskRepository
     {
         return await _context.Tasks
             .AsNoTracking()
+            .Include(task => task.Project)
             .ToListAsync();
     }
 

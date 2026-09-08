@@ -1,6 +1,5 @@
 using Application.DTOs;
 using Application.Interfaces;
-using Domain.Models;
 using Domain.Repositories;
 using Mapster;
 
@@ -25,16 +24,6 @@ public class UserService : IUserService
     {
         var user = await _userRepository.GetUserByIdAsync(id);
         return user?.Adapt<UserDto>();
-    }
-
-    public async Task<UserDto> CreateUserAsync(CreateUserDto user)
-    {
-        var userEntity = user.Adapt<User>();
-        userEntity.Id = Guid.NewGuid();
-        userEntity.CreatedAt = DateTime.UtcNow;
-
-        await _userRepository.CreateUserAsync(userEntity);
-        return userEntity.Adapt<UserDto>();
     }
 
     public async Task UpdateUserAsync(Guid id, UpdateUserDto user)
