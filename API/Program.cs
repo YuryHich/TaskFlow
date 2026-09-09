@@ -1,6 +1,8 @@
 using System.Net;
 using System.Security.Claims;
 using System.Text;
+using API.Auth;
+using API.Filters;
 using Application.Auth;
 using Application.Auth.Authorization;
 using Application.DTOs;
@@ -8,8 +10,6 @@ using Application.Interfaces;
 using Application.Mappings;
 using Application.Services;
 using Application.Validators;
-using API.Auth;
-using API.Filters;
 using Domain.Models;
 using Domain.Repositories;
 using FluentValidation;
@@ -96,7 +96,10 @@ if (app.Environment.IsDevelopment())
     app.UseSwaggerUI();
 }
 
-app.UseHttpsRedirection();
+if (!app.Environment.IsEnvironment("Testing"))
+{
+    app.UseHttpsRedirection();
+}
 app.UseAuthentication();
 app.UseAuthorization();
 app.MapControllers();
@@ -105,4 +108,4 @@ app.MapControllers();
 
 app.Run();
 
-
+public partial class Program { }
