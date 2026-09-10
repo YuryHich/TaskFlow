@@ -7,9 +7,13 @@ public class UpdateTaskValidator : AbstractValidator<UpdateTaskDto>
 {
     public UpdateTaskValidator()
     {
-        RuleFor(task => task.AssigneeId)
-            .Must(assigneeId => !assigneeId.HasValue || assigneeId.Value != Guid.Empty)
-            .WithMessage("AssigneeId must be a valid GUID when provided.");
+        RuleFor(task => task.AssigneeIds)
+            .Must(ids => ids is not null && ids.All(id => id != Guid.Empty))
+            .WithMessage("AssigneeIds must not contain empty GUIDs.");
+
+        RuleFor(task => task.AssigneeIds)
+            .Must(ids => ids is not null && ids.Distinct().Count() == ids.Count)
+            .WithMessage("AssigneeIds must not contain duplicates.");
 
         RuleFor(task => task.Title)
             .NotEmpty()

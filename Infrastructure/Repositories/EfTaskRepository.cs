@@ -19,14 +19,22 @@ public class EfTaskRepository : ITaskRepository
         var query = _context.Tasks.AsNoTracking();
         if (accessibleByUserId is Guid userId)
         {
-            query = query.Where(task => task.AssigneeId == userId || task.Project.OwnerId == userId);
+            query = query.Where(task =>
+                task.Project.OwnerId == userId
+                || task.Project.Tasks.Any(projectTask =>
+                    projectTask.Assignees.Any(assignee => assignee.Id == userId)));
         }
-        return await query.ToListAsync();
+
+        return await query
+            .Include(task => task.Assignees)
+            .ToListAsync();
     }
 
     public async Task<WorkTask?> GetTaskByIdAsync(Guid id)
     {
-        return await _context.Tasks.FindAsync(id);
+        return await _context.Tasks
+            .Include(task => task.Assignees)
+            .FirstOrDefaultAsync(task => task.Id == id);
     }
 
     public async Task<IEnumerable<Comment>> GetTaskCommentsAsync(Guid taskId)

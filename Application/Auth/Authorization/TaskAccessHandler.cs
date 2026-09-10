@@ -21,7 +21,8 @@ public class TaskAccessHandler : AuthorizationHandler<TaskAccessRequirement, Wor
         TaskAccessRequirement requirement,
         WorkTask resource)
     {
-        if (_currentUser.IsAdminOrManager || resource.AssigneeId == _currentUser.UserId)
+        if (_currentUser.IsAdminOrManager
+            || resource.Assignees.Any(assignee => assignee.Id == _currentUser.UserId))
         {
             context.Succeed(requirement);
             return;

@@ -4,7 +4,7 @@ namespace Application.DTOs;
 
 public class UpdateTaskDto
 {
-    public Guid? AssigneeId { get; set; }
+    public IReadOnlyList<Guid> AssigneeIds { get; set; } = [];
     public string Title { get; set; } = string.Empty;
     public string? Description { get; set; }
     public TaskState Status { get; set; }

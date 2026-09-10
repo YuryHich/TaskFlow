@@ -14,11 +14,16 @@ public class EfProjectRepository : IProjectRepository
     {
         _context = context;
     }
-    public async Task<IEnumerable<Project>> GetProjectsAsync(Guid? ownerId = null)
+    public async Task<IEnumerable<Project>> GetProjectsAsync(Guid? accessibleByUserId = null)
     {
         var query = _context.Projects.AsNoTracking();
-        if (ownerId is Guid id) query = query.Where(project => project.OwnerId == id);
-        
+        if (accessibleByUserId is Guid userId)
+        {
+            query = query.Where(project =>
+                project.OwnerId == userId
+                || project.Tasks.Any(task => task.Assignees.Any(assignee => assignee.Id == userId)));
+        }
+
         return await query.ToListAsync();
     }
 
@@ -29,7 +34,11 @@ public class EfProjectRepository : IProjectRepository
 
     public async Task<IEnumerable<WorkTask>> GetProjectTasksAsync(Guid projectId)
     {
-        return await _context.Tasks.AsNoTracking().Where(task => task.ProjectId == projectId).ToListAsync();
+        return await _context.Tasks
+            .AsNoTracking()
+            .Include(task => task.Assignees)
+            .Where(task => task.ProjectId == projectId)
+            .ToListAsync();
     }
 
     public async Task CreateProjectAsync(Project project)

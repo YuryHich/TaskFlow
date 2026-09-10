@@ -37,7 +37,7 @@ namespace Application.Mappings;
             TypeAdapterConfig<WorkTask, TaskDto>.NewConfig()
                 .Map(dest => dest.Id, src => src.Id)
                 .Map(dest => dest.ProjectId, src => src.ProjectId)
-                .Map(dest => dest.AssigneeId, src => src.AssigneeId)
+                .Map(dest => dest.AssigneeIds, src => src.Assignees.Select(assignee => assignee.Id).ToList())
                 .Map(dest => dest.Title, src => src.Title)
                 .Map(dest => dest.Description, src => src.Description)
                 .Map(dest => dest.Status, src => src.Status)
@@ -49,7 +49,7 @@ namespace Application.Mappings;
                 .Ignore(dest => dest.Id)
                 .Ignore(dest => dest.CreatedAt)
                 .Ignore(dest => dest.Project)
-                .Ignore(dest => dest.Assignee)
+                .Ignore(dest => dest.Assignees)
                 .Ignore(dest => dest.Comments)
                 .Ignore(dest => dest.Tags);
 
@@ -58,7 +58,7 @@ namespace Application.Mappings;
                 .Ignore(dest => dest.ProjectId)
                 .Ignore(dest => dest.CreatedAt)
                 .Ignore(dest => dest.Project)
-                .Ignore(dest => dest.Assignee)
+                .Ignore(dest => dest.Assignees)
                 .Ignore(dest => dest.Comments)
                 .Ignore(dest => dest.Tags);
 

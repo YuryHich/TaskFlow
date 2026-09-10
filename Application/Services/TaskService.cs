@@ -65,12 +65,12 @@ public class TaskService : ITaskService
         var authorizationResult = await _authorizationService.AuthorizeProjectOwnerAsync(_currentUser.User, project);
         if (!authorizationResult.Succeeded) throw new ForbiddenException("You are not authorized to create a task in this project");
 
-        if (task.AssigneeId.HasValue)
-            await EnsureUserExistsAsync(task.AssigneeId.Value);
+        var assignees = await LoadAssigneesAsync(task.AssigneeIds);
 
         var taskEntity = task.Adapt<WorkTask>();
         taskEntity.Id = Guid.NewGuid();
         taskEntity.CreatedAt = DateTime.UtcNow;
+        taskEntity.Assignees = assignees;
 
         await _taskRepository.CreateTaskAsync(taskEntity);
         return taskEntity.Adapt<TaskDto>();
@@ -89,10 +89,13 @@ public class TaskService : ITaskService
         var authorizationResult = await _authorizationService.AuthorizeProjectOwnerAsync(_currentUser.User, project);
         if (!authorizationResult.Succeeded) throw new ForbiddenException("You are not authorized to update this task");
 
-        if (task.AssigneeId.HasValue)
-            await EnsureUserExistsAsync(task.AssigneeId.Value);
+        var assignees = await LoadAssigneesAsync(task.AssigneeIds);
 
         task.Adapt(taskEntity);
+        taskEntity.Assignees.Clear();
+        foreach (var assignee in assignees)
+            taskEntity.Assignees.Add(assignee);
+
         await _taskRepository.UpdateTaskAsync(taskEntity);
     }
 
@@ -107,9 +110,16 @@ public class TaskService : ITaskService
         await _taskRepository.DeleteTaskAsync(id);
     }
 
-    private async Task EnsureUserExistsAsync(Guid userId)
+    private async Task<List<User>> LoadAssigneesAsync(IReadOnlyList<Guid> assigneeIds)
     {
-        var user = await _userRepository.GetUserByIdAsync(userId);
-        if (user is null) throw new NotFoundException("User not found");
+        var users = new List<User>(assigneeIds.Count);
+        foreach (var assigneeId in assigneeIds.Distinct())
+        {
+            var user = await _userRepository.GetUserByIdAsync(assigneeId);
+            if (user is null) throw new NotFoundException("User not found");
+            users.Add(user);
+        }
+
+        return users;
     }
 }

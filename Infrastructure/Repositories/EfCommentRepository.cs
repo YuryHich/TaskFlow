@@ -20,7 +20,9 @@ public class EfCommentRepository : ICommentRepository
         if (accessibleByUserId is Guid userId)
         {
             query = query.Where(comment =>
-             comment.Task.AssigneeId == userId || comment.Task.Project.OwnerId == userId);
+                comment.Task.Project.OwnerId == userId
+                || comment.Task.Project.Tasks.Any(task =>
+                    task.Assignees.Any(assignee => assignee.Id == userId)));
         }
         return await query.ToListAsync();
     }
