@@ -1,4 +1,4 @@
-namespace Application.Services;
+namespace Application.Exceptions;
 
 [Serializable]
 public class NotFoundException : Exception

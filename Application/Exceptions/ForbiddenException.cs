@@ -1,4 +1,4 @@
-namespace Application.Services;
+namespace Application.Exceptions;
 
 [Serializable]
 public class ForbiddenException : Exception

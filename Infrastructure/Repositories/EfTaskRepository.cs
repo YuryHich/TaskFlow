@@ -14,12 +14,14 @@ public class EfTaskRepository : ITaskRepository
         _context = context;
     }
 
-    public async Task<IEnumerable<WorkTask>> GetTasksAsync()
+    public async Task<IEnumerable<WorkTask>> GetTasksAsync(Guid? accessibleByUserId = null)
     {
-        return await _context.Tasks
-            .AsNoTracking()
-            .Include(task => task.Project)
-            .ToListAsync();
+        var query = _context.Tasks.AsNoTracking();
+        if (accessibleByUserId is Guid userId)
+        {
+            query = query.Where(task => task.AssigneeId == userId || task.Project.OwnerId == userId);
+        }
+        return await query.ToListAsync();
     }
 
     public async Task<WorkTask?> GetTaskByIdAsync(Guid id)

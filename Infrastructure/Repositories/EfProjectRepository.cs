@@ -14,9 +14,12 @@ public class EfProjectRepository : IProjectRepository
     {
         _context = context;
     }
-    public async Task<IEnumerable<Project>> GetProjectsAsync()
+    public async Task<IEnumerable<Project>> GetProjectsAsync(Guid? ownerId = null)
     {
-        return await _context.Projects.AsNoTracking().ToListAsync();
+        var query = _context.Projects.AsNoTracking();
+        if (ownerId is Guid id) query = query.Where(project => project.OwnerId == id);
+        
+        return await query.ToListAsync();
     }
 
     public async Task<Project?> GetProjectByIdAsync(Guid id)

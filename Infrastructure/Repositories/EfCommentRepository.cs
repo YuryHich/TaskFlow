@@ -14,11 +14,15 @@ public class EfCommentRepository : ICommentRepository
         _context = context;
     }
 
-    public async Task<IEnumerable<Comment>> GetCommentsAsync()
+    public async Task<IEnumerable<Comment>> GetCommentsAsync(Guid? accessibleByUserId = null)
     {
-        return await _context.Comments
-            .AsNoTracking()
-            .ToListAsync();
+        var query = _context.Comments.AsNoTracking();
+        if (accessibleByUserId is Guid userId)
+        {
+            query = query.Where(comment =>
+             comment.Task.AssigneeId == userId || comment.Task.Project.OwnerId == userId);
+        }
+        return await query.ToListAsync();
     }
 
     public async Task<Comment?> GetCommentByIdAsync(Guid id)

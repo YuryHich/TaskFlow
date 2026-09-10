@@ -1,5 +1,6 @@
 using Application.Auth.Authorization;
 using Application.DTOs;
+using Application.Exceptions;
 using Application.Interfaces;
 using Domain.Models;
 using Domain.Repositories;
@@ -32,26 +33,9 @@ public class CommentService : ICommentService
 
     public async Task<IEnumerable<CommentDto>> GetCommentsAsync()
     {
-        var comments = await _commentRepository.GetCommentsAsync();
-        if (_currentUser.IsAdminOrManager)
-        {
-            return comments.Adapt<IEnumerable<CommentDto>>();
-        }
-
-        var tasks = await _taskRepository.GetTasksAsync();
-        var projects = await _projectRepository.GetProjectsAsync();
-        var ownedProjectIds = projects
-            .Where(p => p.OwnerId == _currentUser.UserId)
-            .Select(p => p.Id)
-            .ToHashSet();
-        var accessibleTaskIds = tasks
-            .Where(t => t.AssigneeId == _currentUser.UserId || ownedProjectIds.Contains(t.ProjectId))
-            .Select(t => t.Id)
-            .ToHashSet();
-
-        return comments
-            .Where(c => accessibleTaskIds.Contains(c.TaskId))
-            .Adapt<IEnumerable<CommentDto>>();
+        var filter = _currentUser.IsAdminOrManager ? (Guid?)null : _currentUser.UserId;
+        var comments = await _commentRepository.GetCommentsAsync(filter);
+        return comments.Adapt<IEnumerable<CommentDto>>();
     }
 
     public async Task<CommentDto?> GetCommentByIdAsync(Guid id)

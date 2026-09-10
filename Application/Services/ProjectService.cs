@@ -4,6 +4,7 @@ using System.Linq;
 using System.Threading.Tasks;
 using Application.Auth.Authorization;
 using Application.DTOs;
+using Application.Exceptions;
 using Application.Interfaces;
 using Domain.Models;
 using Domain.Repositories;
@@ -33,16 +34,10 @@ namespace Application.Services;
 
         public async Task<IEnumerable<ProjectDto>> GetProjectsAsync()
         {
-        var projects = await _projectRepository.GetProjectsAsync();
-        if (_currentUser.IsAdminOrManager)
-        {
-            return projects.Adapt<IEnumerable<ProjectDto>>();
-        }
-        else
-        {
-            return projects.Where(p => p.OwnerId == _currentUser.UserId).Adapt<IEnumerable<ProjectDto>>();
-        }
-        }
+        var filter = _currentUser.IsAdminOrManager ? (Guid?)null : _currentUser.UserId;
+        var projects = await _projectRepository.GetProjectsAsync(filter);
+        return projects.Adapt<IEnumerable<ProjectDto>>();
+    }
 
         public async Task<ProjectDto?> GetProjectByIdAsync(Guid id)
         {

@@ -41,15 +41,10 @@ namespace API.Controllers
             {
                 return BadRequest(validationResult.Errors);
             }
-        try
-        {
+       
             var tokenResponse = await _authService.RegisterAsync(request);
             return StatusCode(StatusCodes.Status201Created, tokenResponse);
-        }
-            catch (UserAlreadyExistsException ex)
-            {
-                return Conflict(new { message = ex.Message });
-            }
+        
         }
 
         [HttpPost("login")]
@@ -60,15 +55,10 @@ namespace API.Controllers
             {
                 return BadRequest(validationResult.Errors);
             }
-            try
-            {
-                var tokenResponse = await _authService.LoginAsync(request);
+           
+            var tokenResponse = await _authService.LoginAsync(request);
             return Ok(tokenResponse);
-            }
-            catch (UnauthorizedAccessException ex)
-            {
-                return Unauthorized(new { message = ex.Message });
-            }
+        
         }
 
         [HttpPost("refresh")]
@@ -79,15 +69,10 @@ namespace API.Controllers
             {
                 return BadRequest(validationResult.Errors);
             }
-            try
-            {
+            
                 var tokenResponse = await _authService.RefreshTokenAsync(request);
                 return Ok(tokenResponse);
-            }
-            catch (UnauthorizedAccessException ex)
-            {
-                return Unauthorized(new { message = ex.Message });
-            }
+           
         }
 
         [HttpPost("logout")]

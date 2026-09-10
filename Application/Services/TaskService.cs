@@ -1,5 +1,6 @@
 using Application.Auth.Authorization;
 using Application.DTOs;
+using Application.Exceptions;
 using Application.Interfaces;
 using Domain.Models;
 using Domain.Repositories;
@@ -32,23 +33,9 @@ public class TaskService : ITaskService
 
     public async Task<IEnumerable<TaskDto>> GetTasksAsync()
     {
-        var tasks = await _taskRepository.GetTasksAsync();
-        if (_currentUser.IsAdminOrManager)
-        {
-            return tasks.Adapt<IEnumerable<TaskDto>>();
-        }
-        else
-        {
-            var projects = await _projectRepository.GetProjectsAsync();
-            var ownedProjectIds = projects
-                .Where(p => p.OwnerId == _currentUser.UserId)
-                .Select(p => p.Id)
-                .ToHashSet();
-
-            return tasks
-                .Where(t => t.AssigneeId == _currentUser.UserId || ownedProjectIds.Contains(t.ProjectId))
-                .Adapt<IEnumerable<TaskDto>>();
-        }
+        var filter = _currentUser.IsAdminOrManager ? (Guid?)null : _currentUser.UserId;
+        var tasks = await _taskRepository.GetTasksAsync(filter);
+        return tasks.Adapt<IEnumerable<TaskDto>>();
     }
 
     public async Task<TaskDto?> GetTaskByIdAsync(Guid id)

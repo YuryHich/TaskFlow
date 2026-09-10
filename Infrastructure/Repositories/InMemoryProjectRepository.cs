@@ -7,7 +7,7 @@ public class InMemoryProjectRepository : IProjectRepository
 {
     private readonly List<Project> _projects = [];
 
-    public Task<IEnumerable<Project>> GetProjectsAsync()
+    public Task<IEnumerable<Project>> GetProjectsAsync(Guid? ownerId = null)
     {
         return Task.FromResult<IEnumerable<Project>>(_projects.ToList());
     }

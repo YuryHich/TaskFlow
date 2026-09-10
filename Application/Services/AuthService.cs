@@ -73,7 +73,7 @@ namespace Application.Services
             var user = await _userRepository.GetByEmailAsync(request.Email);
             if (user == null || _passwordHasher.VerifyHashedPassword(user, user.PasswordHash, request.Password) != PasswordVerificationResult.Success)
             {
-                throw new UnauthorizedAccessException();
+                throw new UnauthorizedException();
             }
 
             var accessTokenExpiration = _jwtService.GetAccessTokenExpiryUtc();
@@ -100,23 +100,23 @@ namespace Application.Services
             var refreshTokenEntity = await _refreshTokenRepository.GetRefreshTokenByHashAsync(refreshTokenHash);
             if (refreshTokenEntity == null)
             {
-                throw new UnauthorizedAccessException();
+                throw new UnauthorizedException();
             }
             if (refreshTokenEntity.RevokedAt != null)
             {
                 await _refreshTokenRepository.RevokeAllForUserAsync(refreshTokenEntity.UserId);
-                throw new UnauthorizedAccessException();
+                throw new UnauthorizedException();
             }
             if (refreshTokenEntity.ExpiresAt < DateTime.UtcNow)
             {
-                throw new UnauthorizedAccessException();
+                throw new UnauthorizedException();
             }
 
             refreshTokenEntity.RevokedAt = DateTime.UtcNow;
             var user = refreshTokenEntity.User ?? await _userRepository.GetUserByIdAsync(refreshTokenEntity.UserId);
             if (user == null)
             {
-                throw new UnauthorizedAccessException();
+                throw new UnauthorizedException();
             }
             var accessTokenExpiration = _jwtService.GetAccessTokenExpiryUtc();
             var accessToken = _jwtService.GenerateAccessToken(user, accessTokenExpiration);

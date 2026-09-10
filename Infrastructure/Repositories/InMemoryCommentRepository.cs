@@ -7,7 +7,7 @@ public class InMemoryCommentRepository : ICommentRepository
 {
     private readonly List<Comment> _comments = [];
 
-    public Task<IEnumerable<Comment>> GetCommentsAsync()
+    public Task<IEnumerable<Comment>> GetCommentsAsync(Guid? accessibleByUserId = null)
     {
         return Task.FromResult<IEnumerable<Comment>>(_comments.ToList());
     }

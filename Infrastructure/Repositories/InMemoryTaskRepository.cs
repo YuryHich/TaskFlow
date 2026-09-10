@@ -7,7 +7,7 @@ public class InMemoryTaskRepository : ITaskRepository
 {
     private readonly List<WorkTask> _tasks = [];
 
-    public Task<IEnumerable<WorkTask>> GetTasksAsync()
+    public Task<IEnumerable<WorkTask>> GetTasksAsync(Guid? accessibleByUserId = null)
     {
         return Task.FromResult<IEnumerable<WorkTask>>(_tasks.ToList());
     }
