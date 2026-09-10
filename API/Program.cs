@@ -22,6 +22,7 @@ using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using API.ExceptionHandling;
+using API.Filters;
 
 
 var builder = WebApplication.CreateBuilder(args);
@@ -52,7 +53,8 @@ builder.Services.AddScoped<IAuthorizationHandler, ProjectOwnerHandler>();
 builder.Services.AddScoped<IAuthorizationHandler, TaskAccessHandler>();
 builder.Services.Configure<JwtOptions>(builder.Configuration.GetSection("Jwt"));
 builder.Services.AddScoped<IPasswordHasher<User>, PasswordHasher<User>>();
-builder.Services.AddControllers();
+builder.Services.AddControllers(options =>
+    options.Filters.Add<ValidationActionFilter>());
 builder.Services.AddProblemDetails();
 builder.Services.AddExceptionHandler<GlobalExceptionHandler>();
 builder.Services.AddOpenApi();

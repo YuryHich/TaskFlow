@@ -1,6 +1,5 @@
 using Application.DTOs;
 using Application.Interfaces;
-using FluentValidation;
 using Microsoft.AspNetCore.Mvc;
 
 namespace API.Controllers;
@@ -11,19 +10,13 @@ public class CommentController : ControllerBase
 {
     private readonly ILogger<CommentController> _logger;
     private readonly ICommentService _commentService;
-    private readonly IValidator<CreateCommentDto> _createCommentValidator;
-    private readonly IValidator<UpdateCommentDto> _updateCommentValidator;
 
     public CommentController(
         ILogger<CommentController> logger,
-        ICommentService commentService,
-        IValidator<CreateCommentDto> createCommentValidator,
-        IValidator<UpdateCommentDto> updateCommentValidator)
+        ICommentService commentService)
     {
         _logger = logger;
         _commentService = commentService;
-        _createCommentValidator = createCommentValidator;
-        _updateCommentValidator = updateCommentValidator;
     }
 
     [HttpGet]
@@ -46,12 +39,6 @@ public class CommentController : ControllerBase
     public async Task<IActionResult> CreateComment([FromBody] CreateCommentDto comment)
     {
         _logger.LogInformation("Creating a new comment.");
-        var validationResult = await _createCommentValidator.ValidateAsync(comment);
-        if (!validationResult.IsValid)
-        {
-            return BadRequest(validationResult.Errors);
-        }
-
         var createdComment = await _commentService.CreateCommentAsync(comment);
         return CreatedAtAction(nameof(GetComment), new { id = createdComment.Id }, createdComment);
     }
@@ -60,12 +47,6 @@ public class CommentController : ControllerBase
     public async Task<IActionResult> UpdateComment(Guid id, [FromBody] UpdateCommentDto comment)
     {
         _logger.LogInformation("Updating comment with ID: {Id}", id);
-        var validationResult = await _updateCommentValidator.ValidateAsync(comment);
-        if (!validationResult.IsValid)
-        {
-            return BadRequest(validationResult.Errors);
-        }
-
         await _commentService.UpdateCommentAsync(id, comment);
         return NoContent();
     }

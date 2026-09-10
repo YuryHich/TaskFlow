@@ -8,9 +8,11 @@ Backend-система управления проектами и задачам
 
 - .NET 10, ASP.NET Core Web API
 - EF Core + PostgreSQL (Docker + pgAdmin)
-- JWT Bearer (HS256), `IPasswordHasher<User>`
-- FluentValidation, Mapster
+- JWT Bearer (HS256): реализация в Infrastructure, use cases в Application
+- `IPasswordHasher<User>`, FluentValidation, Mapster
+- Глобальный `IExceptionHandler` + ProblemDetails
 - Swagger UI в Development (`/swagger`)
+- Интеграционные тесты: `WebApplicationFactory` + xUnit, отдельная БД `TaskFlowDb_Tests`
 
 ## Локальный запуск
 
@@ -28,6 +30,12 @@ dotnet user-secrets set "Jwt:Key" "<строка не короче 32 симво
 Миграции уже в репозитории. Если база пустая:  
 `dotnet ef database update --project Infrastructure --startup-project API`
 
+Тесты (нужен поднятый Postgres из compose; dev-база `TaskFlowDB` не используется):
+
+```text
+dotnet test API.Tests/API.Tests.csproj
+```
+
 ## Что уже сделано
 
 ### Sprint 1 — доменная модель и CRUD
@@ -44,7 +52,7 @@ dotnet user-secrets set "Jwt:Key" "<строка не короче 32 симво
 - Эндпоинты: `POST /api/auth/register` (201), `/login`, `/refresh`, `/logout`
 - Пароль: минимум 8 символов, верхний и нижний регистр, цифра
 - Все остальные API требуют `Authorization: Bearer <accessToken>` (без токена — 401)
-- Роли Admin / Manager / Developer; админа для тестов повышаете в pgAdmin (`Users.Role = Admin`), затем снова login
+- Роли Admin / Manager / Developer. Роль через API не меняется: для тестов выставляете в БД (`Users.Role`), затем снова login
 - Доступ без участников проекта: owner проекта, assignee задачи, Admin/Manager
 - Публичного `POST /api/users` нет — пользователи только через register
 
@@ -52,23 +60,34 @@ dotnet user-secrets set "Jwt:Key" "<строка не короче 32 симво
 
 | | Developer | Admin / Manager |
 |---|---|---|
-| Проекты list | только свои (`OwnerId`) | все |
-| Создать / удалить проект | нет | да (`OwnerId` = текущий пользователь) |
-| Задачи | свои как assignee **или** owner проекта | все |
+| Проекты list | только где он `OwnerId` | все |
+| Создать / удалить проект | нет | да |
+| Назначить owner | нет | да: `OwnerId` в POST или PUT (пользователь должен существовать) |
+| Проект GET / PUT (имя, описание) | только свой как owner | любой |
+| Сменить `OwnerId` | нет (даже если owner) | да |
+| Задачи создать / PUT / DELETE | только в своём проекте (owner) | все |
+| Задачи GET | assignee **или** owner проекта | все |
+| Комментарии | доступ к задаче (TaskAccess) | все |
 | Теги GET | любой залогиненный | то же |
 | Теги запись | нет | да |
 | Users GET | нет | да |
 | Users PUT | только себя | Admin — любого; Manager — себя |
 | Users DELETE | нет | только Admin |
 
-Чужая существующая сущность → **403**, нет записи → **404**.
+Чужая существующая сущность → **403**, нет записи → **404**.  
+`POST /api/projects` без `OwnerId` — владелец = текущий Admin/Manager. Assignee задачи проект в списке не видит и задачу не редактирует (только GET и комментарии).
+
+### Sprint 3 — тесты, слои, owner, чтение, ошибки
+
+- Интеграционные тесты API: auth (register/login/refresh rotation и reuse, logout), 401 без токена, права на проекты, назначение owner
+- `JwtService` в Infrastructure; Application зависит только от порта `IJwtService`
+- Owner: Admin/Manager назначают существующего пользователя при создании или через PUT
+- Списки projects / tasks / comments фильтруются в SQL, не после `ToList`
+- Единый exception handler (ProblemDetails): 400 / 401 / 403 / 404 / 409
+- FluentValidation через action filter, контроллеры без ручного `ValidateAsync`
+- CQRS / MediatR не вводили: сервисы по use case достаточны для текущего CRUD
 
 ## Что будет дальше
-
-### CQRS и тесты
-
-- CQRS и MediatR (команды и запросы)
-- Unit- и интеграционные тесты
 
 ### Redis и SignalR
 

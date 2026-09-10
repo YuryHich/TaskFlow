@@ -1,7 +1,6 @@
 using Application.Auth.Authorization;
 using Application.DTOs;
 using Application.Interfaces;
-using FluentValidation;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
@@ -13,19 +12,13 @@ public class TagController : ControllerBase
 {
     private readonly ILogger<TagController> _logger;
     private readonly ITagService _tagService;
-    private readonly IValidator<CreateTagDto> _createTagValidator;
-    private readonly IValidator<UpdateTagDto> _updateTagValidator;
 
     public TagController(
         ILogger<TagController> logger,
-        ITagService tagService,
-        IValidator<CreateTagDto> createTagValidator,
-        IValidator<UpdateTagDto> updateTagValidator)
+        ITagService tagService)
     {
         _logger = logger;
         _tagService = tagService;
-        _createTagValidator = createTagValidator;
-        _updateTagValidator = updateTagValidator;
     }
 
     [HttpGet]
@@ -49,12 +42,6 @@ public class TagController : ControllerBase
     public async Task<IActionResult> CreateTag([FromBody] CreateTagDto tag)
     {
         _logger.LogInformation("Creating a new tag.");
-        var validationResult = await _createTagValidator.ValidateAsync(tag);
-        if (!validationResult.IsValid)
-        {
-            return BadRequest(validationResult.Errors);
-        }
-
         var createdTag = await _tagService.CreateTagAsync(tag);
         return CreatedAtAction(nameof(GetTag), new { id = createdTag.Id }, createdTag);
     }
@@ -68,12 +55,6 @@ public class TagController : ControllerBase
         if (existingTag is null)
         {
             return NotFound();
-        }
-
-        var validationResult = await _updateTagValidator.ValidateAsync(tag);
-        if (!validationResult.IsValid)
-        {
-            return BadRequest(validationResult.Errors);
         }
 
         await _tagService.UpdateTagAsync(id, tag);
