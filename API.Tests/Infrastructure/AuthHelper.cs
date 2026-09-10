@@ -1,14 +1,14 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using System.Threading.Tasks;
 using Application.DTOs;
+using Domain.Models;
 using Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
-using System.Net.Http.Headers;
-using Domain.Models;
 
 namespace API.Tests.Infrastructure;
 
@@ -69,4 +69,35 @@ public static class AuthHelper
         user.Role = role;
         await db.SaveChangesAsync();
     }
+
+    public static async Task<AuthTokens> LoginAsync(
+        HttpClient client,
+        TaskFlowApiFixture fixture,
+        string email,
+        string? password = null)
+    {
+        password ??= TaskFlowApiFixture.TestPassword;
+
+        var login = await client.PostAsJsonAsync("/api/auth/login", new LoginRequest{
+            Email = email,
+            Password = password
+        });
+        login.EnsureSuccessStatusCode();
+
+        var tokens = (await login.Content.ReadFromJsonAsync<TokenResponse>())
+        ?? throw new InvalidOperationException("Login returned empty body.");
+
+        Guid userId;
+        using (var scope = fixture.Services.CreateScope()){
+            var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+            userId = await db.Users.Where(u => u.Email == email).Select(u => u.Id).SingleAsync();
+        }
+
+        return new AuthTokens(tokens.AccessToken, tokens.RefreshToken, userId, email);
+    }
+
+
 }
+
+
+
