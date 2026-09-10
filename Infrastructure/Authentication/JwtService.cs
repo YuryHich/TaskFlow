@@ -7,7 +7,7 @@ using Domain.Models;
 using Microsoft.Extensions.Options;
 using Microsoft.IdentityModel.Tokens;
 
-namespace Application.Services;
+namespace Infrastructure.Authentication;
 
 public class JwtService : IJwtService
 {

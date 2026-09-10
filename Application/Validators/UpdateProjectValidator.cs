@@ -15,6 +15,7 @@ public class UpdateProjectValidator : AbstractValidator<UpdateProjectDto>
             .MaximumLength(1000);
 
         RuleFor(project => project.OwnerId)
-            .NotEmpty();
+            .Must(ownerId => !ownerId.HasValue || ownerId.Value != Guid.Empty)
+            .WithMessage("OwnerId must be a valid GUID when provided.");
     }
 }

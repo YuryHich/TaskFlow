@@ -15,15 +15,18 @@ namespace Application.Services;
     public class ProjectService : IProjectService
     {
     private readonly IProjectRepository _projectRepository;
+    private readonly IUserRepository _userRepository;
     private readonly ICurrentUser _currentUser;
     private readonly IAuthorizationService _authorizationService;
 
     public ProjectService(
         IProjectRepository projectRepository,
+        IUserRepository userRepository,
         ICurrentUser currentUser,
         IAuthorizationService authorizationService)
         {
         _projectRepository = projectRepository;
+        _userRepository = userRepository;
         _currentUser = currentUser;
         _authorizationService = authorizationService;
         }
@@ -63,7 +66,10 @@ namespace Application.Services;
         public async Task<ProjectDto> CreateProjectAsync(CreateProjectDto project)
         {
         var projectEntity = project.Adapt<Project>();
-        projectEntity.OwnerId = _currentUser.UserId;
+        var ownerId = project.OwnerId is Guid id && id != Guid.Empty ? id : _currentUser.UserId;
+        if (ownerId != _currentUser.UserId)
+            await EnsureUserExistsAsync(ownerId);
+        projectEntity.OwnerId = ownerId;
         projectEntity.Id = Guid.NewGuid();
             projectEntity.CreatedAt = DateTime.UtcNow;
             await _projectRepository.CreateProjectAsync(projectEntity);
@@ -79,9 +85,14 @@ namespace Application.Services;
             }
             var authorizationResult = await _authorizationService.AuthorizeProjectOwnerAsync(_currentUser.User, projectEntity);
             if (!authorizationResult.Succeeded) throw new ForbiddenException("You are not authorized to update this project");
-            var ownerId = projectEntity.OwnerId;
             project.Adapt(projectEntity);
-            projectEntity.OwnerId = ownerId;
+            if (project.OwnerId is Guid newOwnerId && newOwnerId != Guid.Empty && newOwnerId != projectEntity.OwnerId)
+            {
+                if (!_currentUser.IsAdminOrManager)
+                    throw new ForbiddenException("You are not authorized to change the project owner");
+                await EnsureUserExistsAsync(newOwnerId);
+                projectEntity.OwnerId = newOwnerId;
+            }
             await _projectRepository.UpdateProjectAsync(projectEntity);
         }
 
@@ -91,4 +102,10 @@ namespace Application.Services;
         if (projectEntity is null) throw new NotFoundException("Project not found");
         await _projectRepository.DeleteProjectAsync(id);
         }
+
+    private async Task EnsureUserExistsAsync(Guid userId)
+    {
+        var user = await _userRepository.GetUserByIdAsync(userId);
+        if (user is null) throw new NotFoundException("User not found");
+    }
     }

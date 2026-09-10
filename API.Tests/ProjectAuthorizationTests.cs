@@ -305,4 +305,154 @@ public class ProjectAuthorizationTests
 
         Assert.Equal(HttpStatusCode.Unauthorized, createProject.StatusCode);
     }
+
+    [Fact]
+    public async Task Manager_CanAssignOwner_OwnerDeveloperCanUseProject()
+    {
+        using var developerClient = _fixture.CreateClient();
+        var developerTokens = await AuthHelper.RegisterAndLoginAsync(
+            developerClient,
+            _fixture,
+            password: TaskFlowApiFixture.TestPassword);
+
+        using var managerClient = _fixture.CreateClient();
+        var managerTokens = await AuthHelper.RegisterAndLoginAsync(
+            managerClient,
+            _fixture,
+            password: TaskFlowApiFixture.TestPassword);
+        await AuthHelper.SetRoleAsync(_fixture, managerTokens.UserId, UserRole.Manager);
+        managerTokens = await AuthHelper.LoginAsync(
+            managerClient,
+            _fixture,
+            managerTokens.Email,
+            TaskFlowApiFixture.TestPassword);
+
+        using var managerAuthorizedClient = _fixture.CreateClient().WithBearer(managerTokens.AccessToken);
+
+        var createProject = await managerAuthorizedClient.PostAsJsonAsync("/api/projects", new CreateProjectDto
+        {
+            Name = "Owner Assign Test",
+            Description = "authz"
+        });
+        Assert.Equal(HttpStatusCode.Created, createProject.StatusCode);
+
+        var createdProject = await createProject.Content.ReadFromJsonAsync<ProjectDto>();
+        Assert.NotNull(createdProject);
+
+        var missingOwner = await managerAuthorizedClient.PutAsJsonAsync(
+            $"/api/projects/{createdProject.Id}",
+            new UpdateProjectDto
+            {
+                Name = createdProject.Name,
+                Description = createdProject.Description,
+                OwnerId = Guid.NewGuid()
+            });
+        Assert.Equal(HttpStatusCode.NotFound, missingOwner.StatusCode);
+
+        var assignOwner = await managerAuthorizedClient.PutAsJsonAsync(
+            $"/api/projects/{createdProject.Id}",
+            new UpdateProjectDto
+            {
+                Name = createdProject.Name,
+                Description = createdProject.Description,
+                OwnerId = developerTokens.UserId
+            });
+        Assert.Equal(HttpStatusCode.NoContent, assignOwner.StatusCode);
+
+        using var ownerAuthorizedClient = _fixture.CreateClient().WithBearer(developerTokens.AccessToken);
+
+        var getProject = await ownerAuthorizedClient.GetAsync($"/api/projects/{createdProject.Id}");
+        Assert.Equal(HttpStatusCode.OK, getProject.StatusCode);
+        var ownedProject = await getProject.Content.ReadFromJsonAsync<ProjectDto>();
+        Assert.NotNull(ownedProject);
+        Assert.Equal(developerTokens.UserId, ownedProject.OwnerId);
+
+        var createTask = await ownerAuthorizedClient.PostAsJsonAsync("/api/tasks", new CreateTaskDto
+        {
+            ProjectId = createdProject.Id,
+            Title = "Owner task",
+            Description = "created by owner-dev",
+            Status = TaskState.New,
+            Priority = TaskPriority.Medium
+        });
+        Assert.Equal(HttpStatusCode.Created, createTask.StatusCode);
+
+        var updateName = await ownerAuthorizedClient.PutAsJsonAsync(
+            $"/api/projects/{createdProject.Id}",
+            new UpdateProjectDto
+            {
+                Name = "Renamed by owner-dev",
+                Description = createdProject.Description
+            });
+        Assert.Equal(HttpStatusCode.NoContent, updateName.StatusCode);
+
+        var ownerTriesTransfer = await ownerAuthorizedClient.PutAsJsonAsync(
+            $"/api/projects/{createdProject.Id}",
+            new UpdateProjectDto
+            {
+                Name = "Renamed by owner-dev",
+                Description = createdProject.Description,
+                OwnerId = managerTokens.UserId
+            });
+        Assert.Equal(HttpStatusCode.Forbidden, ownerTriesTransfer.StatusCode);
+
+        using var strangerClient = _fixture.CreateClient();
+        var strangerTokens = await AuthHelper.RegisterAndLoginAsync(
+            strangerClient,
+            _fixture,
+            password: TaskFlowApiFixture.TestPassword);
+        using var strangerAuthorizedClient = _fixture.CreateClient().WithBearer(strangerTokens.AccessToken);
+
+        var strangerGet = await strangerAuthorizedClient.GetAsync($"/api/projects/{createdProject.Id}");
+        Assert.Equal(HttpStatusCode.Forbidden, strangerGet.StatusCode);
+
+        var strangerList = await strangerAuthorizedClient.GetAsync("/api/projects");
+        Assert.Equal(HttpStatusCode.OK, strangerList.StatusCode);
+        var strangerProjects = await strangerList.Content.ReadFromJsonAsync<ProjectDto[]>();
+        Assert.NotNull(strangerProjects);
+        Assert.DoesNotContain(strangerProjects, p => p.Id == createdProject.Id);
+    }
+
+    [Fact]
+    public async Task Developer_CannotAssignProjectOwner()
+    {
+        using var managerClient = _fixture.CreateClient();
+        var managerTokens = await AuthHelper.RegisterAndLoginAsync(
+            managerClient,
+            _fixture,
+            password: TaskFlowApiFixture.TestPassword);
+        await AuthHelper.SetRoleAsync(_fixture, managerTokens.UserId, UserRole.Manager);
+        managerTokens = await AuthHelper.LoginAsync(
+            managerClient,
+            _fixture,
+            managerTokens.Email,
+            TaskFlowApiFixture.TestPassword);
+
+        using var managerAuthorizedClient = _fixture.CreateClient().WithBearer(managerTokens.AccessToken);
+        var createProject = await managerAuthorizedClient.PostAsJsonAsync("/api/projects", new CreateProjectDto
+        {
+            Name = "Owned by manager",
+            Description = "authz"
+        });
+        Assert.Equal(HttpStatusCode.Created, createProject.StatusCode);
+        var createdProject = await createProject.Content.ReadFromJsonAsync<ProjectDto>();
+        Assert.NotNull(createdProject);
+
+        using var developerClient = _fixture.CreateClient();
+        var developerTokens = await AuthHelper.RegisterAndLoginAsync(
+            developerClient,
+            _fixture,
+            password: TaskFlowApiFixture.TestPassword);
+        using var developerAuthorizedClient = _fixture.CreateClient().WithBearer(developerTokens.AccessToken);
+
+        var assignOwner = await developerAuthorizedClient.PutAsJsonAsync(
+            $"/api/projects/{createdProject.Id}",
+            new UpdateProjectDto
+            {
+                Name = createdProject.Name,
+                Description = createdProject.Description,
+                OwnerId = developerTokens.UserId
+            });
+        Assert.Equal(HttpStatusCode.Forbidden, assignOwner.StatusCode);
+    }
 }

@@ -13,6 +13,7 @@ using Application.Validators;
 using Domain.Models;
 using Domain.Repositories;
 using FluentValidation;
+using Infrastructure.Authentication;
 using Infrastructure.Persistence;
 using Infrastructure.Repositories;
 using Mapster;

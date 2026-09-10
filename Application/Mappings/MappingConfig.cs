@@ -22,12 +22,14 @@ namespace Application.Mappings;
             TypeAdapterConfig<CreateProjectDto, Project>.NewConfig()
                 .Ignore(dest => dest.Id)
                 .Ignore(dest => dest.CreatedAt)
+                .Ignore(dest => dest.OwnerId)
                 .Ignore(dest => dest.Owner)    
                 .Ignore(dest => dest.Tasks);
 
             TypeAdapterConfig<UpdateProjectDto, Project>.NewConfig()
                 .Ignore(dest => dest.Id)
                 .Ignore(dest => dest.CreatedAt)
+                .Ignore(dest => dest.OwnerId)
                 .Ignore(dest => dest.Owner)
                 .Ignore(dest => dest.Tasks);
 

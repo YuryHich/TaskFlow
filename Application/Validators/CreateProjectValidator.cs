@@ -13,5 +13,9 @@ public class CreateProjectValidator : AbstractValidator<CreateProjectDto>
 
         RuleFor(project => project.Description)
             .MaximumLength(1000);
+
+        RuleFor(project => project.OwnerId)
+            .Must(ownerId => !ownerId.HasValue || ownerId.Value != Guid.Empty)
+            .WithMessage("OwnerId must be a valid GUID when provided.");
     }
 }
