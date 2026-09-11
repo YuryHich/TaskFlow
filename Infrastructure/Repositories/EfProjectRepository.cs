@@ -32,6 +32,14 @@ public class EfProjectRepository : IProjectRepository
         return await _context.Projects.FindAsync(id);
     }
 
+    public Task<bool> UserHasProjectReadAccessAsync(Guid projectId, Guid userId)
+    {
+        return _context.Projects.AsNoTracking().AnyAsync(project =>
+            project.Id == projectId
+            && (project.OwnerId == userId
+                || project.Tasks.Any(task => task.Assignees.Any(assignee => assignee.Id == userId))));
+    }
+
     public async Task<IEnumerable<WorkTask>> GetProjectTasksAsync(Guid projectId)
     {
         return await _context.Tasks

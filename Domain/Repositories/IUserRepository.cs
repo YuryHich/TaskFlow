@@ -11,5 +11,6 @@ namespace Domain.Repositories
         public Task CreateUserAsync(User user);
         public Task UpdateUserAsync(User user);
         public Task DeleteUserAsync(Guid id);
+        public Task<IReadOnlyList<Guid>> GetUserIdsByRoleAsync(params UserRole[] roles);
     }
 }

@@ -2,6 +2,8 @@ using System.Net;
 using System.Security.Claims;
 using System.Text;
 using API.Auth;
+using API.ExceptionHandling;
+using API.Filters;
 using Application.Auth;
 using Application.Auth.Authorization;
 using Application.DTOs;
@@ -21,8 +23,6 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
-using API.ExceptionHandling;
-using API.Filters;
 
 
 var builder = WebApplication.CreateBuilder(args);
@@ -47,9 +47,11 @@ builder.Services.AddScoped<IUserRepository, EfUserRepository>();
 builder.Services.AddScoped<IRefreshTokenRepository, EfRefreshTokenRepository>();
 builder.Services.AddScoped<IAuthService, AuthService>();
 builder.Services.AddScoped<IJwtService, JwtService>();
+builder.Services.AddScoped<IProjectAudience, ProjectAudience>();
 builder.Services.AddHttpContextAccessor();
 builder.Services.AddScoped<ICurrentUser, CurrentUser>();
 builder.Services.AddScoped<IAuthorizationHandler, ProjectOwnerHandler>();
+builder.Services.AddScoped<IAuthorizationHandler, ProjectAccessHandler>();
 builder.Services.AddScoped<IAuthorizationHandler, TaskAccessHandler>();
 builder.Services.Configure<JwtOptions>(builder.Configuration.GetSection("Jwt"));
 builder.Services.AddScoped<IPasswordHasher<User>, PasswordHasher<User>>();
@@ -87,6 +89,8 @@ builder.Services.AddAuthorization(options =>
         policy.RequireRole(nameof(UserRole.Admin), nameof(UserRole.Manager)));
     options.AddPolicy(AuthorizationPolicies.ProjectOwner, policy =>
         policy.Requirements.Add(new ProjectOwnerRequirement()));
+    options.AddPolicy(AuthorizationPolicies.ProjectAccess, policy =>
+        policy.Requirements.Add(new ProjectAccessRequirement()));
     options.AddPolicy(AuthorizationPolicies.TaskAccess, policy =>
         policy.Requirements.Add(new TaskAccessRequirement()));
 });

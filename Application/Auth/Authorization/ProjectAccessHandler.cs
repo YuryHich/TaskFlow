@@ -5,12 +5,12 @@ using Microsoft.AspNetCore.Authorization;
 
 namespace Application.Auth.Authorization;
 
-public class TaskAccessHandler : AuthorizationHandler<TaskAccessRequirement, WorkTask>
+public class ProjectAccessHandler : AuthorizationHandler<ProjectAccessRequirement, Project>
 {
     private readonly ICurrentUser _currentUser;
     private readonly IProjectRepository _projectRepository;
 
-    public TaskAccessHandler(ICurrentUser currentUser, IProjectRepository projectRepository)
+    public ProjectAccessHandler(ICurrentUser currentUser, IProjectRepository projectRepository)
     {
         _currentUser = currentUser;
         _projectRepository = projectRepository;
@@ -18,11 +18,11 @@ public class TaskAccessHandler : AuthorizationHandler<TaskAccessRequirement, Wor
 
     protected override async Task HandleRequirementAsync(
         AuthorizationHandlerContext context,
-        TaskAccessRequirement requirement,
-        WorkTask resource)
+        ProjectAccessRequirement requirement,
+        Project resource)
     {
         if (_currentUser.IsAdminOrManager
-            || await _projectRepository.UserHasProjectReadAccessAsync(resource.ProjectId, _currentUser.UserId))
+            || await _projectRepository.UserHasProjectReadAccessAsync(resource.Id, _currentUser.UserId))
         {
             context.Succeed(requirement);
         }

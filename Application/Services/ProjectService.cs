@@ -43,7 +43,7 @@ namespace Application.Services;
         {
         var project = await _projectRepository.GetProjectByIdAsync(id);
         if (project is null) { throw new NotFoundException("Project not found"); }
-        var authorizationResult = await _authorizationService.AuthorizeProjectOwnerAsync(_currentUser.User, project);
+        var authorizationResult = await _authorizationService.AuthorizeProjectAccessAsync(_currentUser.User, project);
         if (!authorizationResult.Succeeded) { throw new ForbiddenException("You are not authorized to access this project"); }
         return project.Adapt<ProjectDto>();
         }
@@ -52,7 +52,7 @@ namespace Application.Services;
     {
         var project = await _projectRepository.GetProjectByIdAsync(projectId);
         if (project is null) throw new NotFoundException("Project not found");
-        var authorizationResult = await _authorizationService.AuthorizeProjectOwnerAsync(_currentUser.User, project);
+        var authorizationResult = await _authorizationService.AuthorizeProjectAccessAsync(_currentUser.User, project);
         if (!authorizationResult.Succeeded) throw new ForbiddenException("You are not authorized to access this project");
         var tasks = await _projectRepository.GetProjectTasksAsync(projectId);
         return tasks.Adapt<IEnumerable<TaskDto>>();
