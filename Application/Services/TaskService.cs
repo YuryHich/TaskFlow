@@ -1,5 +1,6 @@
 using Application.Auth.Authorization;
 using Application.DTOs;
+using Application.Events;
 using Application.Exceptions;
 using Application.Interfaces;
 using Domain.Models;
@@ -16,19 +17,22 @@ public class TaskService : ITaskService
     private readonly IUserRepository _userRepository;
     private readonly ICurrentUser _currentUser;
     private readonly IAuthorizationService _authorizationService;
+    private readonly IAppEventPublisher _appEventPublisher;
 
     public TaskService(
         ITaskRepository taskRepository,
         IProjectRepository projectRepository,
         IUserRepository userRepository,
         ICurrentUser currentUser,
-        IAuthorizationService authorizationService)
+        IAuthorizationService authorizationService,
+        IAppEventPublisher appEventPublisher)
     {
         _taskRepository = taskRepository;
         _projectRepository = projectRepository;
         _userRepository = userRepository;
         _currentUser = currentUser;
         _authorizationService = authorizationService;
+        _appEventPublisher = appEventPublisher;
     }
 
     public async Task<IEnumerable<TaskDto>> GetTasksAsync()
@@ -73,6 +77,7 @@ public class TaskService : ITaskService
         taskEntity.Assignees = assignees;
 
         await _taskRepository.CreateTaskAsync(taskEntity);
+        await _appEventPublisher.PublishAsync(new TaskCreatedEvent(taskEntity.Id, taskEntity.ProjectId));
         return taskEntity.Adapt<TaskDto>();
     }
 
@@ -97,6 +102,7 @@ public class TaskService : ITaskService
             taskEntity.Assignees.Add(assignee);
 
         await _taskRepository.UpdateTaskAsync(taskEntity);
+        await _appEventPublisher.PublishAsync(new TaskUpdatedEvent(taskEntity.Id, taskEntity.ProjectId));
     }
 
     public async Task DeleteTaskAsync(Guid id)
@@ -107,7 +113,10 @@ public class TaskService : ITaskService
         if (project is null) throw new NotFoundException("Project not found");
         var authorizationResult = await _authorizationService.AuthorizeProjectOwnerAsync(_currentUser.User, project);
         if (!authorizationResult.Succeeded) throw new ForbiddenException("You are not authorized to delete this task");
+        var taskId = taskEntity.Id;
+        var projectId = taskEntity.ProjectId;
         await _taskRepository.DeleteTaskAsync(id);
+        await _appEventPublisher.PublishAsync(new TaskDeletedEvent(taskId, projectId));
     }
 
     private async Task<List<User>> LoadAssigneesAsync(IReadOnlyList<Guid> assigneeIds)

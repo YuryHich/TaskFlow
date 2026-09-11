@@ -181,7 +181,7 @@ public class ProjectAccessTests
         Assert.Equal(ids.Distinct().Count(), ids.Count);
     }
 
-    private async Task<HttpClient> CreateManagerClientAsync()
+    private async Task<HttpClient>  CreateManagerClientAsync()
     {
         var tokens = await AuthHelper.RegisterAndLoginAsync(_fixture.CreateClient(), _fixture);
         await AuthHelper.SetRoleAsync(_fixture, tokens.UserId, UserRole.Manager);

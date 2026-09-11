@@ -10,6 +10,7 @@ using Domain.Models;
 using Domain.Repositories;
 using Mapster;
 using Microsoft.AspNetCore.Authorization;
+using Application.Events;
 
 namespace Application.Services;
 
@@ -19,18 +20,24 @@ namespace Application.Services;
     private readonly IUserRepository _userRepository;
     private readonly ICurrentUser _currentUser;
     private readonly IAuthorizationService _authorizationService;
+    private readonly IAppEventPublisher _appEventPublisher;
+    private readonly IProjectAudience _projectAudience;
 
     public ProjectService(
         IProjectRepository projectRepository,
         IUserRepository userRepository,
         ICurrentUser currentUser,
-        IAuthorizationService authorizationService)
-        {
+        IAuthorizationService authorizationService,
+        IAppEventPublisher appEventPublisher,
+        IProjectAudience projectAudience)
+    {
         _projectRepository = projectRepository;
         _userRepository = userRepository;
         _currentUser = currentUser;
         _authorizationService = authorizationService;
-        }
+        _appEventPublisher = appEventPublisher;
+        _projectAudience = projectAudience;
+    }
 
         public async Task<IEnumerable<ProjectDto>> GetProjectsAsync()
         {
@@ -68,6 +75,7 @@ namespace Application.Services;
         projectEntity.Id = Guid.NewGuid();
             projectEntity.CreatedAt = DateTime.UtcNow;
             await _projectRepository.CreateProjectAsync(projectEntity);
+            await _appEventPublisher.PublishAsync(new ProjectCreatedEvent(projectEntity.Id, projectEntity.OwnerId));
             return projectEntity.Adapt<ProjectDto>();
         }
 
@@ -89,13 +97,16 @@ namespace Application.Services;
                 projectEntity.OwnerId = newOwnerId;
             }
             await _projectRepository.UpdateProjectAsync(projectEntity);
+            await _appEventPublisher.PublishAsync(new ProjectUpdatedEvent(projectEntity.Id));
         }
 
     public async Task DeleteProjectAsync(Guid id)
     {
         var projectEntity = await _projectRepository.GetProjectByIdAsync(id);
         if (projectEntity is null) throw new NotFoundException("Project not found");
+        var audience = await _projectAudience.GetUserIdsAsync(id);
         await _projectRepository.DeleteProjectAsync(id);
+        await _appEventPublisher.PublishAsync(new ProjectDeletedEvent(id, audience));
         }
 
     private async Task EnsureUserExistsAsync(Guid userId)
