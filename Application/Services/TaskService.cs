@@ -1,4 +1,5 @@
 using Application.Auth.Authorization;
+using Application.Caching;
 using Application.DTOs;
 using Application.Events;
 using Application.Exceptions;
@@ -7,6 +8,7 @@ using Domain.Models;
 using Domain.Repositories;
 using Mapster;
 using Microsoft.AspNetCore.Authorization;
+using Microsoft.Extensions.Options;
 
 namespace Application.Services;
 
@@ -18,14 +20,17 @@ public class TaskService : ITaskService
     private readonly ICurrentUser _currentUser;
     private readonly IAuthorizationService _authorizationService;
     private readonly IAppEventPublisher _appEventPublisher;
-
+    private readonly ICacheService _cache;
+    private readonly IOptions<CacheOptions> _cacheOptions;
     public TaskService(
         ITaskRepository taskRepository,
         IProjectRepository projectRepository,
         IUserRepository userRepository,
         ICurrentUser currentUser,
         IAuthorizationService authorizationService,
-        IAppEventPublisher appEventPublisher)
+        IAppEventPublisher appEventPublisher,
+        ICacheService cache,
+        IOptions<CacheOptions> cacheOptions)
     {
         _taskRepository = taskRepository;
         _projectRepository = projectRepository;
@@ -33,6 +38,8 @@ public class TaskService : ITaskService
         _currentUser = currentUser;
         _authorizationService = authorizationService;
         _appEventPublisher = appEventPublisher;
+        _cache = cache;
+        _cacheOptions = cacheOptions;
     }
 
     public async Task<IEnumerable<TaskDto>> GetTasksAsync()
@@ -44,12 +51,27 @@ public class TaskService : ITaskService
 
     public async Task<TaskDto?> GetTaskByIdAsync(Guid id)
     {
+        var cached = await _cache.GetAsync<TaskDto>(CacheKeys.Task(id));
+        if (cached is not null)
+        {
+            var cachedTask = new WorkTask { Id = cached.Id, ProjectId = cached.ProjectId };
+            var cachedAuth = await _authorizationService.AuthorizeTaskAccessAsync(_currentUser.User, cachedTask);
+            if (!cachedAuth.Succeeded)
+                throw new ForbiddenException("You are not authorized to access this task");
+            return cached;
+        }
         var task = await _taskRepository.GetTaskByIdAsync(id);
-        if (task is null) throw new NotFoundException("Task not found");
+        if (task is null)
+            throw new NotFoundException("Task not found");
         var authorizationResult = await _authorizationService.AuthorizeTaskAccessAsync(_currentUser.User, task);
         if (!authorizationResult.Succeeded)
-        throw new ForbiddenException("You are not authorized to access this task");
-        return task.Adapt<TaskDto>();
+            throw new ForbiddenException("You are not authorized to access this task");
+        var dto = task.Adapt<TaskDto>();
+        await _cache.SetAsync(
+            CacheKeys.Task(id),
+            dto,
+            TimeSpan.FromMinutes(_cacheOptions.Value.TaskMinutes));
+        return dto;
     }
 
     public async Task<IEnumerable<CommentDto>> GetTaskCommentsAsync(Guid taskId)

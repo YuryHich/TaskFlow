@@ -34,6 +34,33 @@ services:
         condition: service_healthy
     restart: unless-stopped
 
+  taskflow-redis:
+    container_name: taskflow-redis
+    image: redis:latest
+    ports:
+      - "6379:6379"
+    volumes:
+      - taskflow_redis:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+  taskflow-redisinsight:
+    container_name: taskflow-redisinsight
+    image: redis/redisinsight:latest
+    ports:
+      - "5540:5540"
+    volumes:
+      - taskflow_redisinsight:/data
+    depends_on:
+      taskflow-redis:
+        condition: service_healthy
+    restart: unless-stopped
 volumes:
   taskflow_pgdata:
   taskflow_pgadmin:
+  taskflow_redis:
+  taskflow_redisinsight:
