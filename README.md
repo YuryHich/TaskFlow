@@ -2,12 +2,14 @@
 
 Backend-система управления проектами и задачами (трекер для компании).
 
-**Проект в активной разработке.** Сейчас это ASP.NET Core монолит с REST API и PostgreSQL. Слои Domain / Application / Infrastructure / API уже заложены.
+**Проект в активной разработке.** Сейчас это ASP.NET Core монолит с REST API, JWT, PostgreSQL, узким Redis-кэшем и SignalR. Слои Domain / Application / Infrastructure / API уже заложены.
 
 ## Стек
 
 - .NET 10, ASP.NET Core Web API
 - EF Core + PostgreSQL (Docker + pgAdmin)
+- Redis: cache-aside (`IDistributedCache`), в тестах — in-memory
+- SignalR: хаб уведомлений `/hubs/notifications`, JWT
 - JWT Bearer (HS256): реализация в Infrastructure, use cases в Application
 - `IPasswordHasher<User>`, FluentValidation, Mapster
 - Глобальный `IExceptionHandler` + ProblemDetails
@@ -16,7 +18,9 @@ Backend-система управления проектами и задачам
 
 ## Локальный запуск
 
-1. БД: `docker compose up -d` из корня репозитория (Postgres `5432`, pgAdmin `5050`).
+1. Инфраструктура: `docker compose up -d` из корня репозитория  
+   Postgres `5432`, pgAdmin `5050`, Redis `6379`, Redis Insight `http://localhost:5540`  
+   В Insight хост Redis — `taskflow-redis`, порт `6379` (не `localhost`).
 2. Секреты API (Development, User Secrets, не коммитятся):
 
 ```text
@@ -24,13 +28,15 @@ dotnet user-secrets set "ConnectionStrings:DefaultConnection" "<строка к 
 dotnet user-secrets set "Jwt:Key" "<строка не короче 32 символов>" --project API
 ```
 
+Строка Redis по умолчанию в `appsettings.json`: `localhost:6379,abortConnect=false,connectTimeout=1000`. API стартует и без Redis (кэш miss, REST жив).
+
 3. API: `dotnet run --project API --launch-profile http` → `http://localhost:5031`  
    Swagger: `http://localhost:5031/swagger`
 
 Миграции уже в репозитории. Если база пустая:  
 `dotnet ef database update --project Infrastructure --startup-project API`
 
-Тесты (нужен поднятый Postgres из compose; dev-база `TaskFlowDB` не используется):
+Тесты (нужен поднятый Postgres из compose; Redis **не** нужен — в `Testing` кэш in-memory; dev-база `TaskFlowDB` не используется):
 
 ```text
 dotnet test API.Tests/API.Tests.csproj
@@ -53,29 +59,7 @@ dotnet test API.Tests/API.Tests.csproj
 - Пароль: минимум 8 символов, верхний и нижний регистр, цифра
 - Все остальные API требуют `Authorization: Bearer <accessToken>` (без токена — 401)
 - Роли Admin / Manager / Developer. Роль через API не меняется: для тестов выставляете в БД (`Users.Role`), затем снова login
-- Доступ без участников проекта: owner проекта, assignee задачи, Admin/Manager
 - Публичного `POST /api/users` нет — пользователи только через register
-
-Кратко по правам:
-
-| | Developer | Admin / Manager |
-|---|---|---|
-| Проекты list | только где он `OwnerId` | все |
-| Создать / удалить проект | нет | да |
-| Назначить owner | нет | да: `OwnerId` в POST или PUT (пользователь должен существовать) |
-| Проект GET / PUT (имя, описание) | только свой как owner | любой |
-| Сменить `OwnerId` | нет (даже если owner) | да |
-| Задачи создать / PUT / DELETE | только в своём проекте (owner) | все |
-| Задачи GET | assignee **или** owner проекта | все |
-| Комментарии | доступ к задаче (TaskAccess) | все |
-| Теги GET | любой залогиненный | то же |
-| Теги запись | нет | да |
-| Users GET | нет | да |
-| Users PUT | только себя | Admin — любого; Manager — себя |
-| Users DELETE | нет | только Admin |
-
-Чужая существующая сущность → **403**, нет записи → **404**.  
-`POST /api/projects` без `OwnerId` — владелец = текущий Admin/Manager. Assignee задачи проект в списке не видит и задачу не редактирует (только GET и комментарии).
 
 ### Sprint 3 — тесты, слои, owner, чтение, ошибки
 
@@ -87,19 +71,60 @@ dotnet test API.Tests/API.Tests.csproj
 - FluentValidation через action filter, контроллеры без ручного `ValidateAsync`
 - CQRS / MediatR не вводили: сервисы по use case достаточны для текущего CRUD
 
+### Sprint 4 — аудитория проекта, Redis, SignalR
+
+Чтение проекта (и всех его задач / комментариев), если **Admin | Manager, или owner, или assignee любой задачи этого проекта**. Явной таблицы участников нет: аудитория собирается как owner ∪ исполнители задач ∪ Admin/Manager.
+
+На задаче несколько исполнителей: `AssigneeIds[]` (create/update заменяет набор целиком). Мутации проекта и задач — по-прежнему owner или Admin/Manager. Assignee задачу не редактирует.
+
+После `SaveChanges` сервисы публикуют in-process события (`IAppEventPublisher`). Ошибка подписчика не откатывает HTTP-ответ.
+
+**Кэш (узкий, cache-aside):** ключи только `project:{id}`, `task:{id}`, `tags:all`. TTL: 5 / 2 / 30 минут (`Cache:*Minutes`). Списки не кэшируются. Source of truth — Postgres. Hit не обходит 403. Инвалидация — `CacheInvalidationHandler` на те же события (теги — `TagCatalogChangedEvent`). Если Redis недоступен — warning и miss, REST работает.
+
+**SignalR:** хаб `[Authorize]` `/hubs/notifications`. Подключение: заголовок `Authorization: Bearer` или query `?access_token=` (только путь `/hubs`). Клиент слушает метод `Notify`, тело `{ eventName, projectId, taskId, commentId }`.
+
+Имена: `project.created|updated|deleted`, `task.created|updated|deleted`, `comment.added|updated|deleted`. Теги в хаб не уходят. Доставка `Clients.Users(audience)`, не groups и не `All`. На delete проекта/задачи аудитория считается **до** удаления. Access 15 минут: клиент сам делает refresh и открывает новое соединение (reconnect на бэке нет).
+
+Кратко по правам:
+
+| | Developer | Admin / Manager |
+|---|---|---|
+| Проекты list / GET | где он owner **или** assignee любой задачи | все |
+| Создать / удалить проект | нет | да |
+| Назначить owner | нет | да: `OwnerId` в POST или PUT (пользователь должен существовать) |
+| Проект PUT (имя, описание) | только свой как owner | любой |
+| Сменить `OwnerId` | нет (даже если owner) | да |
+| Задачи создать / PUT / DELETE | только в своём проекте (owner) | все |
+| Задачи GET (включая соседние в проекте) | owner **или** assignee любой задачи проекта | все |
+| Комментарии | доступ к задаче (TaskAccess = чтение проекта) | все |
+| Теги GET | любой залогиненный | то же |
+| Теги запись | нет | да |
+| Users GET | нет | да |
+| Users PUT | только себя | Admin — любого; Manager — себя |
+| Users DELETE | нет | только Admin |
+
+Чужая существующая сущность → **403**, нет записи → **404**.  
+`POST /api/projects` без `OwnerId` — владелец = текущий Admin/Manager.
+
 ## Что будет дальше
 
-### Redis и SignalR
+### Sprint 5 — фронтенд
 
-- Кэш часто читаемых данных (cache-aside, инвалидация)
-- Real-time обновления и уведомления при изменениях задач и проектов
+SPA против текущего монолита (тот же REST и хаб, что потом останутся за gateway). Не ждать микросервисы и Kafka: контракт API уже есть, SignalR без клиента почти не видно, после разбиения UI только дороже (несколько origin, BFF, рассинхрон сервисов).
 
-### События и очереди
+- Логин / refresh access (15 минут) / logout
+- Проекты и задачи с учётом прав (owner, assignee, Admin/Manager)
+- Комментарии, теги
+- Подписка на `/hubs/notifications` (`Notify`), живое обновление без ручного F5
+- CORS на API под origin фронта; токен в памяти или как решите на спринте — не session на Redis
 
-- Domain / integration events
+Очереди и нарезка сервисов — после того, как этот клиент гоняет реальные сценарии.
+
+### Sprint 6 — события и очереди
+
+- Вынести in-process события во внешние очереди
 - RabbitMQ (producer / consumer, exchanges, очереди)
 - MassTransit
-- Асинхронные уведомления и обработка событий
 
 ### Микросервисы и gRPC
 
@@ -114,8 +139,8 @@ dotnet test API.Tests/API.Tests.csproj
 
 ### Инфраструктура
 
-- Dockerfile сервисов, Compose на всю систему
-- PostgreSQL, Redis, RabbitMQ, Kafka и сервисы в контейнерах
+- Dockerfile сервисов, Compose на всю систему (сейчас в compose только Postgres, pgAdmin, Redis, Insight; API — `dotnet run`)
+- RabbitMQ, Kafka и сервисы в контейнерах
 - Настройки через переменные окружения, health checks, базовый logging / monitoring
 
 ### Целевая схема

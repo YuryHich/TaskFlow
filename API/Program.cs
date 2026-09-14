@@ -4,6 +4,7 @@ using System.Text;
 using API.Auth;
 using API.ExceptionHandling;
 using API.Filters;
+using API.Realtime;
 using Application.Auth;
 using Application.Auth.Authorization;
 using Application.Caching;
@@ -11,6 +12,7 @@ using Application.DTOs;
 using Application.Events;
 using Application.Interfaces;
 using Application.Mappings;
+using Application.Realtime;
 using Application.Services;
 using Application.Validators;
 using Domain.Models;
@@ -24,8 +26,10 @@ using Mapster;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Identity;
+using Microsoft.AspNetCore.SignalR;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
+using API.Hubs;
 
 
 var builder = WebApplication.CreateBuilder(args);
@@ -61,10 +65,23 @@ builder.Services.AddScoped<IAppEventHandler<TaskCreatedEvent>, CacheInvalidation
 builder.Services.AddScoped<IAppEventHandler<TaskUpdatedEvent>, CacheInvalidationHandler>();
 builder.Services.AddScoped<IAppEventHandler<TaskDeletedEvent>, CacheInvalidationHandler>();
 builder.Services.AddScoped<IAppEventHandler<TagCatalogChangedEvent>, CacheInvalidationHandler>();
+builder.Services.AddScoped<SignalRNotificationHandler>();
+builder.Services.AddScoped<IAppEventHandler<ProjectCreatedEvent>>(sp => sp.GetRequiredService<SignalRNotificationHandler>());
+builder.Services.AddScoped<IAppEventHandler<ProjectUpdatedEvent>>(sp => sp.GetRequiredService<SignalRNotificationHandler>());
+builder.Services.AddScoped<IAppEventHandler<ProjectDeletedEvent>>(sp => sp.GetRequiredService<SignalRNotificationHandler>());
+builder.Services.AddScoped<IAppEventHandler<TaskCreatedEvent>>(sp => sp.GetRequiredService<SignalRNotificationHandler>());
+builder.Services.AddScoped<IAppEventHandler<TaskUpdatedEvent>>(sp => sp.GetRequiredService<SignalRNotificationHandler>());
+builder.Services.AddScoped<IAppEventHandler<TaskDeletedEvent>>(sp => sp.GetRequiredService<SignalRNotificationHandler>());
+builder.Services.AddScoped<IAppEventHandler<CommentAddedEvent>>(sp => sp.GetRequiredService<SignalRNotificationHandler>());
+builder.Services.AddScoped<IAppEventHandler<CommentUpdatedEvent>>(sp => sp.GetRequiredService<SignalRNotificationHandler>());
+builder.Services.AddScoped<IAppEventHandler<CommentDeletedEvent>>(sp => sp.GetRequiredService<SignalRNotificationHandler>());
 builder.Services.AddScoped<ICurrentUser, CurrentUser>();
 builder.Services.AddScoped<IAuthorizationHandler, ProjectOwnerHandler>();
 builder.Services.AddScoped<IAuthorizationHandler, ProjectAccessHandler>();
 builder.Services.AddScoped<IAuthorizationHandler, TaskAccessHandler>();
+builder.Services.AddSignalR();
+builder.Services.AddSingleton<IUserIdProvider, NameIdentifierUserIdProvider>();
+builder.Services.AddSingleton<IRealtimeNotifier, HubRealtimeNotifier>();
 builder.Services.Configure<JwtOptions>(builder.Configuration.GetSection("Jwt"));
 builder.Services.AddScoped<IPasswordHasher<User>, PasswordHasher<User>>();
 builder.Services.AddControllers(options =>
@@ -86,9 +103,23 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
             ValidAudience = builder.Configuration["Jwt:Audience"],
             IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(builder.Configuration["Jwt:Key"]!)),
             ClockSkew = TimeSpan.Zero,
-            RoleClaimType = ClaimTypes.Role
+            RoleClaimType = ClaimTypes.Role,
+            NameClaimType = ClaimTypes.NameIdentifier
         };
-    });
+        options.Events = new JwtBearerEvents
+        {
+            OnMessageReceived = context =>
+            {
+                var accessToken = context.Request.Query["access_token"];
+                var path = context.HttpContext.Request.Path;
+                if (!string.IsNullOrEmpty(accessToken) && path.StartsWithSegments("/hubs"))
+                {
+                    context.Token = accessToken;
+                }
+                return Task.CompletedTask;
+            }
+        };
+        });
 builder.Services.AddAuthorization(options =>
 {
     options.FallbackPolicy = new AuthorizationPolicyBuilder()
@@ -126,7 +157,7 @@ if (!app.Environment.IsEnvironment("Testing"))
 app.UseAuthentication();
 app.UseAuthorization();
 app.MapControllers();
-
+app.MapHub<NotificationHub>("/hubs/notifications");
 
 
 app.Run();

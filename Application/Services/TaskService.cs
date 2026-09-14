@@ -20,6 +20,7 @@ public class TaskService : ITaskService
     private readonly ICurrentUser _currentUser;
     private readonly IAuthorizationService _authorizationService;
     private readonly IAppEventPublisher _appEventPublisher;
+    private readonly IProjectAudience _projectAudience;
     private readonly ICacheService _cache;
     private readonly IOptions<CacheOptions> _cacheOptions;
     public TaskService(
@@ -29,6 +30,7 @@ public class TaskService : ITaskService
         ICurrentUser currentUser,
         IAuthorizationService authorizationService,
         IAppEventPublisher appEventPublisher,
+        IProjectAudience projectAudience,
         ICacheService cache,
         IOptions<CacheOptions> cacheOptions)
     {
@@ -38,6 +40,7 @@ public class TaskService : ITaskService
         _currentUser = currentUser;
         _authorizationService = authorizationService;
         _appEventPublisher = appEventPublisher;
+        _projectAudience = projectAudience;
         _cache = cache;
         _cacheOptions = cacheOptions;
     }
@@ -137,8 +140,9 @@ public class TaskService : ITaskService
         if (!authorizationResult.Succeeded) throw new ForbiddenException("You are not authorized to delete this task");
         var taskId = taskEntity.Id;
         var projectId = taskEntity.ProjectId;
+        var audience = await _projectAudience.GetUserIdsAsync(projectId);
         await _taskRepository.DeleteTaskAsync(id);
-        await _appEventPublisher.PublishAsync(new TaskDeletedEvent(taskId, projectId));
+        await _appEventPublisher.PublishAsync(new TaskDeletedEvent(taskId, projectId, audience));
     }
 
     private async Task<List<User>> LoadAssigneesAsync(IReadOnlyList<Guid> assigneeIds)
