@@ -1,0 +1,65 @@
+:root {
+  font-family: "Segoe UI", system-ui, sans-serif;
+  line-height: 1.45;
+  color: #e8edf5;
+  background: #0f141c;
+  --line: #2a3444;
+  --card: #18202c;
+  --accent: #6ea8ff;
+  --danger: #ff6b6b;
+}
+
+* { box-sizing: border-box; }
+body { margin: 0; }
+a { color: var(--accent); text-decoration: none; }
+a.active { text-decoration: underline; }
+h1, h2 { margin: 0 0 0.6rem; }
+h1 { font-size: 1.6rem; }
+h2 { font-size: 1.15rem; }
+
+.app { min-height: 100vh; }
+.topbar {
+  display: flex;
+  gap: 1.25rem;
+  align-items: center;
+  padding: 0.75rem 1.25rem;
+  border-bottom: 1px solid var(--line);
+  background: #121924;
+}
+.topbar nav { display: flex; gap: 0.9rem; flex: 1; }
+.brand { letter-spacing: 0.04em; }
+.who { display: flex; gap: 0.75rem; align-items: center; }
+.who em { color: #9bb0cc; font-style: normal; margin-left: 0.35rem; }
+.page { max-width: 860px; margin: 0 auto; padding: 1.5rem 1rem 3rem; }
+.auth-card { max-width: 420px; margin: 12vh auto; padding: 1.5rem; background: var(--card); border-radius: 12px; }
+.stack { display: flex; flex-direction: column; gap: 0.75rem; }
+.row { display: flex; gap: 0.5rem; align-items: center; flex-wrap: wrap; }
+.card { background: var(--card); padding: 1rem; border-radius: 10px; margin: 1rem 0; border: 1px solid var(--line); }
+.list { list-style: none; padding: 0; margin: 0 0 1rem; }
+.list li {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  padding: 0.7rem 0;
+  border-bottom: 1px solid var(--line);
+}
+label { display: flex; flex-direction: column; gap: 0.3rem; font-size: 0.9rem; }
+label.check { flex-direction: row; align-items: center; gap: 0.45rem; }
+input, textarea, select, button {
+  font: inherit;
+  color: inherit;
+  background: #10161f;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 0.45rem 0.6rem;
+}
+textarea { min-height: 4.5rem; resize: vertical; }
+button { background: #2b4c86; border-color: #3b63a8; cursor: pointer; }
+button:disabled { opacity: 0.6; cursor: default; }
+button.ghost { background: transparent; }
+button.danger { background: #5a2020; border-color: #8a3333; }
+.muted { color: #9bb0cc; }
+.pad { padding: 2rem; }
+.banner { padding: 0.6rem 0.75rem; border-radius: 8px; }
+.banner.error { background: #3a1c1c; color: #ffc9c9; }
+fieldset { border: 1px solid var(--line); border-radius: 8px; }

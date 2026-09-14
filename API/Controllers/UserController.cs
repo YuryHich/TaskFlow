@@ -30,6 +30,22 @@ public class UserController : ControllerBase
         return Ok(users);
     }
 
+    [HttpGet("me")]
+    public async Task<IActionResult> GetMe()
+    {
+        _logger.LogInformation("Fetching current user.");
+        var user = await _userService.GetUserByIdAsync(_currentUser.UserId);
+        return user is null ? NotFound() : Ok(user);
+    }
+
+    [HttpGet("directory")]
+    public async Task<IActionResult> GetDirectory()
+    {
+        _logger.LogInformation("Fetching user directory.");
+        var users = await _userService.GetUsersAsync();
+        return Ok(users);
+    }
+
     [HttpGet("{id:guid}")]
     [Authorize(Roles = $"{nameof(UserRole.Admin)},{nameof(UserRole.Manager)}")]
     public async Task<IActionResult> GetUser(Guid id)

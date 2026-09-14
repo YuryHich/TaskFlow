@@ -22,6 +22,7 @@
 *.env
 *.env.*
 !*.env.example
+!**/.env.example
 secrets.json
 
 # Local sprint roadmaps / study notes (not part of the product)
@@ -37,3 +38,7 @@ publish/
 # OS files
 .DS_Store
 Thumbs.db
+
+# Frontend
+web/node_modules/
+web/dist/

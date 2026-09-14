@@ -2,7 +2,7 @@
 
 Backend-система управления проектами и задачами (трекер для компании).
 
-**Проект в активной разработке.** Сейчас это ASP.NET Core монолит с REST API, JWT, PostgreSQL, узким Redis-кэшем и SignalR. Слои Domain / Application / Infrastructure / API уже заложены.
+**Проект в активной разработке.** Сейчас это ASP.NET Core монолит с REST API, JWT, PostgreSQL, узким Redis-кэшем, SignalR и React SPA (`web/`). Слои Domain / Application / Infrastructure / API уже заложены.
 
 ## Стек
 
@@ -10,6 +10,7 @@ Backend-система управления проектами и задачам
 - EF Core + PostgreSQL (Docker + pgAdmin)
 - Redis: cache-aside (`IDistributedCache`), в тестах — in-memory
 - SignalR: хаб уведомлений `/hubs/notifications`, JWT
+- React + TypeScript + Vite SPA (`web/`), TanStack Query
 - JWT Bearer (HS256): реализация в Infrastructure, use cases в Application
 - `IPasswordHasher<User>`, FluentValidation, Mapster
 - Глобальный `IExceptionHandler` + ProblemDetails
@@ -32,6 +33,13 @@ dotnet user-secrets set "Jwt:Key" "<строка не короче 32 симво
 
 3. API: `dotnet run --project API --launch-profile http` → `http://localhost:5031`  
    Swagger: `http://localhost:5031/swagger`
+
+4. Фронт: `npm install` (один раз) и `npm run dev` в `web/` → `http://localhost:5173`  
+   Vite проксирует `/api` и `/hubs` на API (WebSocket включён). Пустой `VITE_API_URL` в `.env.example` — same-origin через proxy. CORS на API разрешает прямой origin `http://localhost:5173`, если proxy не используете.
+
+   Если путь репозитория содержит `#` (например `D:\C#\...`), `npm run dev` поднимает Vite через junction без `#` (`resolve.preserveSymlinks`). Встроенный браузер Cursor может отдавать 404 на `/@vite/client` — откройте тот же URL в обычном Chrome или соберите превью: `npm run build` и `npm run preview` (`http://localhost:4173`).
+
+Access token в памяти, refresh в `sessionStorage`. Через ~14 минут клиент сам обновляет access (`POST /api/auth/refresh`, ротация). F5 восстанавливает сессию. Два пользователя — два окна/инкогнито.
 
 Миграции уже в репозитории. Если база пустая:  
 `dotnet ef database update --project Infrastructure --startup-project API`
@@ -99,26 +107,23 @@ dotnet test API.Tests/API.Tests.csproj
 | Комментарии | доступ к задаче (TaskAccess = чтение проекта) | все |
 | Теги GET | любой залогиненный | то же |
 | Теги запись | нет | да |
-| Users GET | нет | да |
+| Users `/me`, `/directory` | да (id, email, username) | то же |
+| Users GET список | нет | да |
 | Users PUT | только себя | Admin — любого; Manager — себя |
 | Users DELETE | нет | только Admin |
 
 Чужая существующая сущность → **403**, нет записи → **404**.  
 `POST /api/projects` без `OwnerId` — владелец = текущий Admin/Manager.
 
+### Sprint 5 — React SPA
+
+Клиент в `web/`: логин / регистрация / logout, проекты, задачи (`AssigneeIds`), комментарии, каталог тегов, профиль, админка пользователей (staff). Кнопки по роли JWT и `ownerId`. 403 с бэка показывается как «нет прав».
+
+Живые обновления: одно соединение на `/hubs/notifications`, метод `Notify` инвалидирует TanStack Query. Теги с хаба не приходят. После `project.deleted` открытая карточка уходит на список.
+
+Добор API для UI: CORS (`http://localhost:5173`), `GET /api/users/me`, `GET /api/users/directory`. `GET /api/users` по-прежнему только Admin/Manager.
+
 ## Что будет дальше
-
-### Sprint 5 — фронтенд
-
-SPA против текущего монолита (тот же REST и хаб, что потом останутся за gateway). Не ждать микросервисы и Kafka: контракт API уже есть, SignalR без клиента почти не видно, после разбиения UI только дороже (несколько origin, BFF, рассинхрон сервисов).
-
-- Логин / refresh access (15 минут) / logout
-- Проекты и задачи с учётом прав (owner, assignee, Admin/Manager)
-- Комментарии, теги
-- Подписка на `/hubs/notifications` (`Notify`), живое обновление без ручного F5
-- CORS на API под origin фронта; токен в памяти или как решите на спринте — не session на Redis
-
-Очереди и нарезка сервисов — после того, как этот клиент гоняет реальные сценарии.
 
 ### Sprint 6 — события и очереди
 
