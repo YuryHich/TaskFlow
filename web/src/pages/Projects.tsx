@@ -5,6 +5,8 @@ import { createProject, getProjects } from "../api/projects";
 import { useAuth } from "../auth/AuthContext";
 import { ErrorBanner } from "../components/ErrorBanner";
 import { userLabel, useDirectoryMap } from "../components/useDirectory";
+import { useViewMode, ViewToggle } from "../components/ViewToggle";
+import { rememberOwnRealtime } from "../realtime/ownRealtime";
 
 export function ProjectsPage() {
   const { isStaff, userId } = useAuth();
@@ -14,6 +16,7 @@ export function ProjectsPage() {
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
   const [ownerId, setOwnerId] = useState("");
+  const [view, setView] = useViewMode("projects-view");
 
   const create = useMutation({
     mutationFn: () =>
@@ -22,7 +25,8 @@ export function ProjectsPage() {
         description: description || undefined,
         ownerId: ownerId || undefined,
       }),
-    onSuccess: async () => {
+    onSuccess: async (project) => {
+      rememberOwnRealtime("project.created", project.id);
       setName("");
       setDescription("");
       setOwnerId("");
@@ -37,7 +41,10 @@ export function ProjectsPage() {
 
   return (
     <section>
-      <h1>Projects</h1>
+      <div className="section-head">
+        <h1>Projects</h1>
+        <ViewToggle value={view} onChange={setView} />
+      </div>
       <ErrorBanner error={projects.error ?? create.error} />
       {isStaff && (
         <form className="card stack" onSubmit={onCreate}>
@@ -68,6 +75,19 @@ export function ProjectsPage() {
       )}
       {projects.isLoading ? (
         <p className="muted">Loading…</p>
+      ) : view === "tiles" ? (
+        <div className="tile-grid">
+          {(projects.data ?? []).map((project) => (
+            <Link key={project.id} className="tile" to={`/projects/${project.id}`}>
+              <strong>{project.name}</strong>
+              <span className="muted">
+                {project.ownerId === userId ? "You own this" : `Owner ${userLabel(directory.map, project.ownerId)}`}
+              </span>
+              {project.description && <span className="muted tile-excerpt">{project.description}</span>}
+            </Link>
+          ))}
+          {projects.data?.length === 0 && <p className="muted">No projects yet.</p>}
+        </div>
       ) : (
         <ul className="list">
           {(projects.data ?? []).map((project) => (

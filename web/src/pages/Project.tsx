@@ -7,14 +7,10 @@ import { deleteProject, getProject, getProjectTasks, updateProject } from "../ap
 import { useAuth } from "../auth/AuthContext";
 import { ErrorBanner } from "../components/ErrorBanner";
 import { userLabel, useDirectoryMap } from "../components/useDirectory";
+import { useViewMode, ViewToggle } from "../components/ViewToggle";
+import { rememberOwnRealtime } from "../realtime/ownRealtime";
+import { statusLabels } from "../taskMeta";
 import { TaskPriority, TaskState, type TaskPriorityValue, type TaskStateValue } from "../types";
-
-const statusLabels: Record<TaskStateValue, string> = {
-  0: "New",
-  1: "In progress",
-  2: "Done",
-  3: "Cancelled",
-};
 
 export function ProjectPage() {
   const { id = "" } = useParams();
@@ -52,6 +48,7 @@ export function ProjectPage() {
         ownerId: isStaff ? ownerId : undefined,
       }),
     onSuccess: async () => {
+      rememberOwnRealtime("project.updated", id);
       await queryClient.invalidateQueries({ queryKey: ["project", id] });
       await queryClient.invalidateQueries({ queryKey: ["projects"] });
     },
@@ -59,7 +56,10 @@ export function ProjectPage() {
 
   const remove = useMutation({
     mutationFn: () => deleteProject(id),
-    onSuccess: () => navigate("/projects"),
+    onSuccess: () => {
+      rememberOwnRealtime("project.deleted", id);
+      navigate("/projects");
+    },
   });
 
   const [title, setTitle] = useState("");
@@ -68,6 +68,7 @@ export function ProjectPage() {
   const [priority, setPriority] = useState<TaskPriorityValue>(TaskPriority.Medium);
   const [deadline, setDeadline] = useState("");
   const [assignees, setAssignees] = useState<string[]>([]);
+  const [view, setView] = useViewMode("project-tasks-view");
 
   const addTask = useMutation({
     mutationFn: () =>
@@ -80,7 +81,8 @@ export function ProjectPage() {
         deadline: deadline ? new Date(deadline).toISOString() : null,
         assigneeIds: assignees,
       }),
-    onSuccess: async () => {
+    onSuccess: async (task) => {
+      rememberOwnRealtime("task.created", id, task.id);
       setTitle("");
       setTaskDescription("");
       setAssignees([]);
@@ -166,16 +168,33 @@ export function ProjectPage() {
         <p className="muted">{project.data.description || "No description."}</p>
       )}
 
-      <h2>Tasks</h2>
-      <ul className="list">
-        {(tasks.data ?? []).map((task) => (
-          <li key={task.id}>
-            <Link to={`/projects/${id}/tasks/${task.id}`}>{task.title}</Link>
-            <span className="muted">{statusLabels[task.status]}</span>
-          </li>
-        ))}
-        {tasks.data?.length === 0 && <li className="muted">No tasks yet.</li>}
-      </ul>
+      <div className="section-head">
+        <h2>Tasks</h2>
+        <ViewToggle value={view} onChange={setView} />
+      </div>
+      {tasks.isLoading ? (
+        <p className="muted">Loading tasks…</p>
+      ) : view === "tiles" ? (
+        <div className="tile-grid">
+          {(tasks.data ?? []).map((task) => (
+            <Link key={task.id} className="tile" to={`/projects/${id}/tasks/${task.id}`}>
+              <span className={`status-badge status-${task.status}`}>{statusLabels[task.status]}</span>
+              <strong>{task.title}</strong>
+            </Link>
+          ))}
+          {tasks.data?.length === 0 && <p className="muted">No tasks yet.</p>}
+        </div>
+      ) : (
+        <ul className="list">
+          {(tasks.data ?? []).map((task) => (
+            <li key={task.id}>
+              <Link to={`/projects/${id}/tasks/${task.id}`}>{task.title}</Link>
+              <span className={`status-badge status-${task.status}`}>{statusLabels[task.status]}</span>
+            </li>
+          ))}
+          {tasks.data?.length === 0 && <li className="muted">No tasks yet.</li>}
+        </ul>
+      )}
 
       {canMutate && (
         <form

@@ -8,14 +8,9 @@ import { deleteTask, getTask, getTaskComments, updateTask } from "../api/tasks";
 import { useAuth } from "../auth/AuthContext";
 import { ErrorBanner } from "../components/ErrorBanner";
 import { userLabel, useDirectoryMap } from "../components/useDirectory";
+import { rememberOwnRealtime } from "../realtime/ownRealtime";
+import { statusLabels } from "../taskMeta";
 import { TaskPriority, TaskState, type TaskPriorityValue, type TaskStateValue } from "../types";
-
-const statusLabels: Record<TaskStateValue, string> = {
-  0: "New",
-  1: "In progress",
-  2: "Done",
-  3: "Cancelled",
-};
 
 function toLocalInput(iso?: string | null): string {
   if (!iso) return "";
@@ -73,6 +68,7 @@ export function TaskPage() {
         assigneeIds: assignees,
       }),
     onSuccess: async () => {
+      rememberOwnRealtime("task.updated", id, taskId);
       await queryClient.invalidateQueries({ queryKey: ["task", taskId] });
       await queryClient.invalidateQueries({ queryKey: ["project-tasks", id] });
     },
@@ -80,12 +76,16 @@ export function TaskPage() {
 
   const remove = useMutation({
     mutationFn: () => deleteTask(taskId),
-    onSuccess: () => navigate(`/projects/${id}`),
+    onSuccess: () => {
+      rememberOwnRealtime("task.deleted", id, taskId);
+      navigate(`/projects/${id}`);
+    },
   });
 
   const addComment = useMutation({
     mutationFn: () => createComment(taskId, comment, user?.id ?? ""),
     onSuccess: async () => {
+      rememberOwnRealtime("comment.added", id, taskId);
       setComment("");
       await queryClient.invalidateQueries({ queryKey: ["task-comments", taskId] });
     },
@@ -94,6 +94,7 @@ export function TaskPage() {
   const saveComment = useMutation({
     mutationFn: () => updateComment(editingId!, editingText),
     onSuccess: async () => {
+      rememberOwnRealtime("comment.updated", id, taskId);
       setEditingId(null);
       await queryClient.invalidateQueries({ queryKey: ["task-comments", taskId] });
     },
@@ -102,6 +103,7 @@ export function TaskPage() {
   const removeComment = useMutation({
     mutationFn: (commentId: string) => deleteComment(commentId),
     onSuccess: async () => {
+      rememberOwnRealtime("comment.deleted", id, taskId);
       await queryClient.invalidateQueries({ queryKey: ["task-comments", taskId] });
     },
   });
@@ -126,6 +128,9 @@ export function TaskPage() {
         <Link to={`/projects/${id}`}>← {project.data?.name ?? "Project"}</Link>
       </p>
       <h1>{task.data.title}</h1>
+      <p>
+        <span className={`status-badge status-${task.data.status}`}>{statusLabels[task.data.status]}</span>
+      </p>
       <ErrorBanner error={save.error ?? remove.error ?? addComment.error ?? saveComment.error} />
 
       {canMutateTask ? (
@@ -202,7 +207,8 @@ export function TaskPage() {
         <div className="card">
           <p>{task.data.description || "No description."}</p>
           <p className="muted">
-            {statusLabels[task.data.status]} · assignees:{" "}
+            <span className={`status-badge status-${task.data.status}`}>{statusLabels[task.data.status]}</span>
+            {" · assignees: "}
             {task.data.assigneeIds.length
               ? task.data.assigneeIds.map((assignee) => userLabel(directory.map, assignee)).join(", ")
               : "none"}
