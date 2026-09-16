@@ -41,13 +41,28 @@ namespace Infrastructure.Persistence.Configurations
             .HasForeignKey(task => task.ProjectId)
             .OnDelete(DeleteBehavior.Cascade);
 
-        builder.HasOne(task => task.Assignee)
+        builder.HasMany(task => task.Assignees)
             .WithMany(user => user.AssignedTasks)
-            .HasForeignKey(task => task.AssigneeId)
-            .OnDelete(DeleteBehavior.SetNull);
+            .UsingEntity<Dictionary<string, object>>(
+                "TaskAssignees",
+                right => right
+                    .HasOne<User>()
+                    .WithMany()
+                    .HasForeignKey("UserId")
+                    .OnDelete(DeleteBehavior.Cascade),
+                left => left
+                    .HasOne<WorkTask>()
+                    .WithMany()
+                    .HasForeignKey("TaskId")
+                    .OnDelete(DeleteBehavior.Cascade),
+                join =>
+                {
+                    join.HasKey("TaskId", "UserId");
+                    join.ToTable("TaskAssignees");
+                    join.HasIndex("UserId");
+                });
 
         builder.HasIndex(task => task.ProjectId);
-        builder.HasIndex(task => task.AssigneeId);
         }
     }
 }

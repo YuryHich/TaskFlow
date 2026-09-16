@@ -13,8 +13,15 @@ public static class AuthorizationPolicies
     public const string ProjectOwner = "ProjectOwner";
 
     /// <summary>
+    /// Resource-based read: owner, assignee of any task in the project, or Admin/Manager.
+    /// Call via <c>AuthorizeProjectAccessAsync</c>. Do not use as <c>[Authorize(Policy = ...)]</c>.
+    /// </summary>
+    public const string ProjectAccess = "ProjectAccess";
+
+    /// <summary>
     /// Resource-based: call <c>IAuthorizationService.AuthorizeAsync(user, task, TaskAccess)</c>
     /// (or <c>AuthorizeTaskAccessAsync</c>). Do not use as <c>[Authorize(Policy = ...)]</c>.
+    /// Same audience as <see cref="ProjectAccess"/> for the task's project.
     /// </summary>
     public const string TaskAccess = "TaskAccess";
 }

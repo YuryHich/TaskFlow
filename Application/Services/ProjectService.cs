@@ -3,13 +3,16 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
 using Application.Auth.Authorization;
+using Application.Caching;
 using Application.DTOs;
+using Application.Events;
 using Application.Exceptions;
 using Application.Interfaces;
 using Domain.Models;
 using Domain.Repositories;
 using Mapster;
 using Microsoft.AspNetCore.Authorization;
+using Microsoft.Extensions.Options;
 
 namespace Application.Services;
 
@@ -19,18 +22,30 @@ namespace Application.Services;
     private readonly IUserRepository _userRepository;
     private readonly ICurrentUser _currentUser;
     private readonly IAuthorizationService _authorizationService;
+    private readonly IAppEventPublisher _appEventPublisher;
+    private readonly IProjectAudience _projectAudience;
+    private readonly ICacheService _cache;
+    private readonly IOptions<CacheOptions> _cacheOptions;
 
     public ProjectService(
         IProjectRepository projectRepository,
         IUserRepository userRepository,
         ICurrentUser currentUser,
-        IAuthorizationService authorizationService)
-        {
+        IAuthorizationService authorizationService,
+        IAppEventPublisher appEventPublisher,
+        IProjectAudience projectAudience,
+        ICacheService cache,
+        IOptions<CacheOptions> cacheOptions)
+    {
         _projectRepository = projectRepository;
         _userRepository = userRepository;
         _currentUser = currentUser;
         _authorizationService = authorizationService;
-        }
+        _appEventPublisher = appEventPublisher;
+        _projectAudience = projectAudience;
+        _cache = cache;
+        _cacheOptions = cacheOptions;
+    }
 
         public async Task<IEnumerable<ProjectDto>> GetProjectsAsync()
         {
@@ -40,19 +55,32 @@ namespace Application.Services;
     }
 
         public async Task<ProjectDto?> GetProjectByIdAsync(Guid id)
+    {
+        var cached = await _cache.GetAsync<ProjectDto>(CacheKeys.Project(id));
+        if (cached is not null)
         {
-        var project = await _projectRepository.GetProjectByIdAsync(id);
-        if (project is null) { throw new NotFoundException("Project not found"); }
-        var authorizationResult = await _authorizationService.AuthorizeProjectOwnerAsync(_currentUser.User, project);
-        if (!authorizationResult.Succeeded) { throw new ForbiddenException("You are not authorized to access this project"); }
-        return project.Adapt<ProjectDto>();
+            var cachedProject = new Project { Id = cached.Id, OwnerId = cached.OwnerId };
+            var cachedAuth = await _authorizationService.AuthorizeProjectAccessAsync(_currentUser.User, cachedProject);
+            if (!cachedAuth.Succeeded)
+                throw new ForbiddenException("You are not authorized to access this project");
+            return cached;
         }
+        var project = await _projectRepository.GetProjectByIdAsync(id);
+        if (project is null)
+            throw new NotFoundException("Project not found");
+
+        var authorizationResult = await _authorizationService.AuthorizeProjectAccessAsync(_currentUser.User, project);
+        if (!authorizationResult.Succeeded) { throw new ForbiddenException("You are not authorized to access this project"); }
+        var dto = project.Adapt<ProjectDto>();
+        await _cache.SetAsync(CacheKeys.Project(id), dto, TimeSpan.FromMinutes(_cacheOptions.Value.ProjectMinutes));
+        return dto;
+    }
 
         public async Task<IEnumerable<TaskDto>> GetProjectTasksAsync(Guid projectId)
     {
         var project = await _projectRepository.GetProjectByIdAsync(projectId);
         if (project is null) throw new NotFoundException("Project not found");
-        var authorizationResult = await _authorizationService.AuthorizeProjectOwnerAsync(_currentUser.User, project);
+        var authorizationResult = await _authorizationService.AuthorizeProjectAccessAsync(_currentUser.User, project);
         if (!authorizationResult.Succeeded) throw new ForbiddenException("You are not authorized to access this project");
         var tasks = await _projectRepository.GetProjectTasksAsync(projectId);
         return tasks.Adapt<IEnumerable<TaskDto>>();
@@ -68,6 +96,7 @@ namespace Application.Services;
         projectEntity.Id = Guid.NewGuid();
             projectEntity.CreatedAt = DateTime.UtcNow;
             await _projectRepository.CreateProjectAsync(projectEntity);
+            await _appEventPublisher.PublishAsync(new ProjectCreatedEvent(projectEntity.Id, projectEntity.OwnerId));
             return projectEntity.Adapt<ProjectDto>();
         }
 
@@ -89,13 +118,16 @@ namespace Application.Services;
                 projectEntity.OwnerId = newOwnerId;
             }
             await _projectRepository.UpdateProjectAsync(projectEntity);
+            await _appEventPublisher.PublishAsync(new ProjectUpdatedEvent(projectEntity.Id));
         }
 
     public async Task DeleteProjectAsync(Guid id)
     {
         var projectEntity = await _projectRepository.GetProjectByIdAsync(id);
         if (projectEntity is null) throw new NotFoundException("Project not found");
+        var audience = await _projectAudience.GetUserIdsAsync(id);
         await _projectRepository.DeleteProjectAsync(id);
+        await _appEventPublisher.PublishAsync(new ProjectDeletedEvent(id, audience));
         }
 
     private async Task EnsureUserExistsAsync(Guid userId)

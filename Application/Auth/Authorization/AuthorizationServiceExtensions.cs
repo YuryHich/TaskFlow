@@ -12,6 +12,12 @@ public static class AuthorizationServiceExtensions
         Project project)
         => authorization.AuthorizeAsync(user, project, AuthorizationPolicies.ProjectOwner);
 
+    public static Task<AuthorizationResult> AuthorizeProjectAccessAsync(
+        this IAuthorizationService authorization,
+        ClaimsPrincipal user,
+        Project project)
+        => authorization.AuthorizeAsync(user, project, AuthorizationPolicies.ProjectAccess);
+
     public static Task<AuthorizationResult> AuthorizeTaskAccessAsync(
         this IAuthorizationService authorization,
         ClaimsPrincipal user,

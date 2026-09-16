@@ -38,6 +38,15 @@ public class EfUserRepository : IUserRepository
             .FirstOrDefaultAsync(user => user.Username == username);
     }
 
+    public async Task<IReadOnlyList<Guid>> GetUserIdsByRoleAsync(params UserRole[] roles)
+    {
+        return await _context.Users
+            .AsNoTracking()
+            .Where(user => roles.Contains(user.Role))
+            .Select(user => user.Id)
+            .ToListAsync();
+    }
+
     public async Task CreateUserAsync(User user)
     {
         _context.Users.Add(user);

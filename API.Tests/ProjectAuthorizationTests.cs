@@ -455,4 +455,110 @@ public class ProjectAuthorizationTests
             });
         Assert.Equal(HttpStatusCode.Forbidden, assignOwner.StatusCode);
     }
+
+    [Fact]
+    public async Task Developer_AssignedToTask_CanReadProjectAndSiblingTask_ButCannotMutate()
+    {
+        using var managerClient = _fixture.CreateClient();
+        var managerTokens = await AuthHelper.RegisterAndLoginAsync(
+            managerClient,
+            _fixture,
+            password: TaskFlowApiFixture.TestPassword);
+        await AuthHelper.SetRoleAsync(_fixture, managerTokens.UserId, UserRole.Manager);
+        managerTokens = await AuthHelper.LoginAsync(
+            managerClient,
+            _fixture,
+            managerTokens.Email,
+            TaskFlowApiFixture.TestPassword);
+
+        using var assigneeClient = _fixture.CreateClient();
+        var assigneeTokens = await AuthHelper.RegisterAndLoginAsync(
+            assigneeClient,
+            _fixture,
+            password: TaskFlowApiFixture.TestPassword);
+
+        using var managerAuthorizedClient = _fixture.CreateClient().WithBearer(managerTokens.AccessToken);
+
+        var createProject = await managerAuthorizedClient.PostAsJsonAsync("/api/projects", new CreateProjectDto
+        {
+            Name = "Assignee Read Test",
+            Description = "authz"
+        });
+        Assert.Equal(HttpStatusCode.Created, createProject.StatusCode);
+        var createdProject = await createProject.Content.ReadFromJsonAsync<ProjectDto>();
+        Assert.NotNull(createdProject);
+
+        var assignedTask = await managerAuthorizedClient.PostAsJsonAsync("/api/tasks", new CreateTaskDto
+        {
+            ProjectId = createdProject.Id,
+            AssigneeIds = [assigneeTokens.UserId],
+            Title = "Assigned task",
+            Description = "for assignee",
+            Status = TaskState.New,
+            Priority = TaskPriority.Medium
+        });
+        Assert.Equal(HttpStatusCode.Created, assignedTask.StatusCode);
+
+        var siblingTask = await managerAuthorizedClient.PostAsJsonAsync("/api/tasks", new CreateTaskDto
+        {
+            ProjectId = createdProject.Id,
+            Title = "Sibling task",
+            Description = "not assigned to developer",
+            Status = TaskState.New,
+            Priority = TaskPriority.Medium
+        });
+        Assert.Equal(HttpStatusCode.Created, siblingTask.StatusCode);
+        var sibling = await siblingTask.Content.ReadFromJsonAsync<TaskDto>();
+        Assert.NotNull(sibling);
+
+        using var assigneeAuthorizedClient = _fixture.CreateClient().WithBearer(assigneeTokens.AccessToken);
+
+        var listProjects = await assigneeAuthorizedClient.GetAsync("/api/projects");
+        Assert.Equal(HttpStatusCode.OK, listProjects.StatusCode);
+        var projects = await listProjects.Content.ReadFromJsonAsync<ProjectDto[]>();
+        Assert.NotNull(projects);
+        Assert.Contains(projects, p => p.Id == createdProject.Id);
+
+        var getProject = await assigneeAuthorizedClient.GetAsync($"/api/projects/{createdProject.Id}");
+        Assert.Equal(HttpStatusCode.OK, getProject.StatusCode);
+
+        var getProjectTasks = await assigneeAuthorizedClient.GetAsync($"/api/projects/{createdProject.Id}/tasks");
+        Assert.Equal(HttpStatusCode.OK, getProjectTasks.StatusCode);
+        var projectTasks = await getProjectTasks.Content.ReadFromJsonAsync<TaskDto[]>();
+        Assert.NotNull(projectTasks);
+        Assert.Equal(2, projectTasks.Length);
+
+        var getSibling = await assigneeAuthorizedClient.GetAsync($"/api/tasks/{sibling.Id}");
+        Assert.Equal(HttpStatusCode.OK, getSibling.StatusCode);
+
+        var putProject = await assigneeAuthorizedClient.PutAsJsonAsync(
+            $"/api/projects/{createdProject.Id}",
+            new UpdateProjectDto
+            {
+                Name = "Hijack",
+                Description = createdProject.Description
+            });
+        Assert.Equal(HttpStatusCode.Forbidden, putProject.StatusCode);
+
+        var createTask = await assigneeAuthorizedClient.PostAsJsonAsync("/api/tasks", new CreateTaskDto
+        {
+            ProjectId = createdProject.Id,
+            Title = "Should fail",
+            Description = "assignee cannot create",
+            Status = TaskState.New,
+            Priority = TaskPriority.Medium
+        });
+        Assert.Equal(HttpStatusCode.Forbidden, createTask.StatusCode);
+
+        var putSibling = await assigneeAuthorizedClient.PutAsJsonAsync(
+            $"/api/tasks/{sibling.Id}",
+            new UpdateTaskDto
+            {
+                Title = "Hijack sibling",
+                Description = sibling.Description,
+                Status = sibling.Status,
+                Priority = sibling.Priority
+            });
+        Assert.Equal(HttpStatusCode.Forbidden, putSibling.StatusCode);
+    }
 }

@@ -21,16 +21,10 @@ public class TaskAccessHandler : AuthorizationHandler<TaskAccessRequirement, Wor
         TaskAccessRequirement requirement,
         WorkTask resource)
     {
-        if (_currentUser.IsAdminOrManager || resource.AssigneeId == _currentUser.UserId)
+        if (_currentUser.IsAdminOrManager
+            || await _projectRepository.UserHasProjectReadAccessAsync(resource.ProjectId, _currentUser.UserId))
         {
             context.Succeed(requirement);
-            return;
         }
-
-        var ownerId = resource.Project?.OwnerId
-            ?? (await _projectRepository.GetProjectByIdAsync(resource.ProjectId))?.OwnerId;
-
-        if (ownerId == _currentUser.UserId)
-            context.Succeed(requirement);
     }
 }
