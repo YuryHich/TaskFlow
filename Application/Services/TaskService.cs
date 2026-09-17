@@ -102,7 +102,14 @@ public class TaskService : ITaskService
         taskEntity.Assignees = assignees;
 
         await _taskRepository.CreateTaskAsync(taskEntity);
-        await _appEventPublisher.PublishAsync(new TaskCreatedEvent(taskEntity.Id, taskEntity.ProjectId));
+        await _appEventPublisher.PublishAsync(new TaskCreatedEvent(
+            EventId: Guid.NewGuid(),
+            OccurredAt: DateTime.UtcNow,
+            TaskId: taskEntity.Id,
+            ProjectId: taskEntity.ProjectId,
+            ActorUserId: _currentUser.UserId,
+            Title: taskEntity.Title,
+            AssigneeIds: taskEntity.Assignees.Select(a => a.Id).ToList()));
         return taskEntity.Adapt<TaskDto>();
     }
 
@@ -127,7 +134,12 @@ public class TaskService : ITaskService
             taskEntity.Assignees.Add(assignee);
 
         await _taskRepository.UpdateTaskAsync(taskEntity);
-        await _appEventPublisher.PublishAsync(new TaskUpdatedEvent(taskEntity.Id, taskEntity.ProjectId));
+        await _appEventPublisher.PublishAsync(new TaskUpdatedEvent(
+            EventId: Guid.NewGuid(),
+            OccurredAt: DateTime.UtcNow,
+            TaskId: taskEntity.Id,
+            ProjectId: taskEntity.ProjectId,
+            ActorUserId: _currentUser.UserId));
     }
 
     public async Task DeleteTaskAsync(Guid id)
@@ -142,7 +154,13 @@ public class TaskService : ITaskService
         var projectId = taskEntity.ProjectId;
         var audience = await _projectAudience.GetUserIdsAsync(projectId);
         await _taskRepository.DeleteTaskAsync(id);
-        await _appEventPublisher.PublishAsync(new TaskDeletedEvent(taskId, projectId, audience));
+        await _appEventPublisher.PublishAsync(new TaskDeletedEvent(
+            EventId: Guid.NewGuid(),
+            OccurredAt: DateTime.UtcNow,
+            TaskId: taskId,
+            ProjectId: projectId,
+            ActorUserId: _currentUser.UserId,
+            AudienceUserIds: audience));
     }
 
     private async Task<List<User>> LoadAssigneesAsync(IReadOnlyList<Guid> assigneeIds)

@@ -34,11 +34,20 @@ public static class HubTestHelper
 
     public static Task<RealtimeNotification> WaitNotifyAsync(
         HubConnection connection,
+        string eventName,
+        Guid? projectId = null,
         TimeSpan? timeout = null)
     {
         var tcs = new TaskCompletionSource<RealtimeNotification>(
             TaskCreationOptions.RunContinuationsAsynchronously);
-        connection.On<RealtimeNotification>("Notify", n => tcs.TrySetResult(n));
-        return tcs.Task.WaitAsync(timeout ?? TimeSpan.FromSeconds(5));
+        connection.On<RealtimeNotification>("Notify", notification =>
+        {
+            if (notification.EventName != eventName)
+                return;
+            if (projectId is Guid id && notification.ProjectId != id)
+                return;
+            tcs.TrySetResult(notification);
+        });
+        return tcs.Task.WaitAsync(timeout ?? TimeSpan.FromSeconds(8));
     }
 }

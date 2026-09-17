@@ -66,8 +66,13 @@ public class CommentService : ICommentService
         commentEntity.CreatedAt = DateTime.UtcNow;
 
         await _commentRepository.CreateCommentAsync(commentEntity);
-        await _appEventPublisher.PublishAsync(
-            new CommentAddedEvent(commentEntity.Id, commentEntity.TaskId, task.ProjectId));
+        await _appEventPublisher.PublishAsync(new CommentAddedEvent(
+            EventId: Guid.NewGuid(),
+            OccurredAt: DateTime.UtcNow,
+            CommentId: commentEntity.Id,
+            TaskId: commentEntity.TaskId,
+            ProjectId: task.ProjectId,
+            ActorUserId: _currentUser.UserId));
         return commentEntity.Adapt<CommentDto>();
     }
 
@@ -82,8 +87,13 @@ public class CommentService : ICommentService
         var task = await EnsureTaskAccessAsync(commentEntity.TaskId);
         comment.Adapt(commentEntity);
         await _commentRepository.UpdateCommentAsync(commentEntity);
-        await _appEventPublisher.PublishAsync(
-            new CommentUpdatedEvent(commentEntity.Id, commentEntity.TaskId, task.ProjectId));
+        await _appEventPublisher.PublishAsync(new CommentUpdatedEvent(
+            EventId: Guid.NewGuid(),
+            OccurredAt: DateTime.UtcNow,
+            CommentId: commentEntity.Id,
+            TaskId: commentEntity.TaskId,
+            ProjectId: task.ProjectId,
+            ActorUserId: _currentUser.UserId));
     }
 
     public async Task DeleteCommentAsync(Guid id)
@@ -92,8 +102,13 @@ public class CommentService : ICommentService
         if (commentEntity is null) throw new NotFoundException("Comment not found");
         var task = await EnsureTaskAccessAsync(commentEntity.TaskId);
         await _commentRepository.DeleteCommentAsync(id);
-        await _appEventPublisher.PublishAsync(
-            new CommentDeletedEvent(commentEntity.Id, commentEntity.TaskId, task.ProjectId));
+        await _appEventPublisher.PublishAsync(new CommentDeletedEvent(
+            EventId: Guid.NewGuid(),
+            OccurredAt: DateTime.UtcNow,
+            CommentId: commentEntity.Id,
+            TaskId: commentEntity.TaskId,
+            ProjectId: task.ProjectId,
+            ActorUserId: _currentUser.UserId));
     }
 
     private async Task<WorkTask> EnsureTaskAccessAsync(Guid taskId)

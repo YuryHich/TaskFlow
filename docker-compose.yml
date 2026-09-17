@@ -59,8 +59,28 @@ services:
       taskflow-redis:
         condition: service_healthy
     restart: unless-stopped
+
+  taskflow-rabbitmq:
+    container_name: taskflow-rabbitmq
+    image: rabbitmq:3-management
+    ports:
+      - "5672:5672"
+      - "15672:15672"
+    environment:
+      RABBITMQ_DEFAULT_USER: taskflow
+      RABBITMQ_DEFAULT_PASS: password
+      RABBITMQ_DEFAULT_VHOST: /
+    volumes:
+      - taskflow_rabbitmq:/var/lib/rabbitmq
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
 volumes:
   taskflow_pgdata:
   taskflow_pgadmin:
   taskflow_redis:
   taskflow_redisinsight:
+  taskflow_rabbitmq:

@@ -67,10 +67,10 @@ public class SignalRNotificationTests
         await using var managerHub = HubTestHelper.CreateConnection(_fixture, seed.Manager.AccessToken);
         await using var strangerHub = HubTestHelper.CreateConnection(_fixture, seed.Stranger.AccessToken);
 
-        var ownerWait = HubTestHelper.WaitNotifyAsync(ownerHub);
-        var assigneeWait = HubTestHelper.WaitNotifyAsync(assigneeHub);
-        var managerWait = HubTestHelper.WaitNotifyAsync(managerHub);
-        var strangerWait = HubTestHelper.WaitNotifyAsync(strangerHub);
+        var ownerWait = HubTestHelper.WaitNotifyAsync(ownerHub, "task.updated", seed.Project.Id);
+        var assigneeWait = HubTestHelper.WaitNotifyAsync(assigneeHub, "task.updated", seed.Project.Id);
+        var managerWait = HubTestHelper.WaitNotifyAsync(managerHub, "task.updated", seed.Project.Id);
+        var strangerWait = HubTestHelper.WaitNotifyAsync(strangerHub, "task.updated", seed.Project.Id);
 
         await ownerHub.StartAsync();
         await assigneeHub.StartAsync();
@@ -101,10 +101,10 @@ public class SignalRNotificationTests
         await using var managerHub = HubTestHelper.CreateConnection(_fixture, seed.Manager.AccessToken);
         await using var strangerHub = HubTestHelper.CreateConnection(_fixture, seed.Stranger.AccessToken);
 
-        var ownerWait = HubTestHelper.WaitNotifyAsync(ownerHub);
-        var assigneeWait = HubTestHelper.WaitNotifyAsync(assigneeHub);
-        var managerWait = HubTestHelper.WaitNotifyAsync(managerHub);
-        var strangerWait = HubTestHelper.WaitNotifyAsync(strangerHub);
+        var ownerWait = HubTestHelper.WaitNotifyAsync(ownerHub, "comment.added", seed.Project.Id);
+        var assigneeWait = HubTestHelper.WaitNotifyAsync(assigneeHub, "comment.added", seed.Project.Id);
+        var managerWait = HubTestHelper.WaitNotifyAsync(managerHub, "comment.added", seed.Project.Id);
+        var strangerWait = HubTestHelper.WaitNotifyAsync(strangerHub, "comment.added", seed.Project.Id);
 
         await ownerHub.StartAsync();
         await assigneeHub.StartAsync();
@@ -138,10 +138,10 @@ public class SignalRNotificationTests
         await using var managerHub = HubTestHelper.CreateConnection(_fixture, seed.Manager.AccessToken);
         await using var strangerHub = HubTestHelper.CreateConnection(_fixture, seed.Stranger.AccessToken);
 
-        var ownerWait = HubTestHelper.WaitNotifyAsync(ownerHub);
-        var assigneeWait = HubTestHelper.WaitNotifyAsync(assigneeHub);
-        var managerWait = HubTestHelper.WaitNotifyAsync(managerHub);
-        var strangerWait = HubTestHelper.WaitNotifyAsync(strangerHub);
+        var ownerWait = HubTestHelper.WaitNotifyAsync(ownerHub, "project.updated", seed.Project.Id);
+        var assigneeWait = HubTestHelper.WaitNotifyAsync(assigneeHub, "project.updated", seed.Project.Id);
+        var managerWait = HubTestHelper.WaitNotifyAsync(managerHub, "project.updated", seed.Project.Id);
+        var strangerWait = HubTestHelper.WaitNotifyAsync(strangerHub, "project.updated", seed.Project.Id);
 
         await ownerHub.StartAsync();
         await assigneeHub.StartAsync();
@@ -172,10 +172,10 @@ public class SignalRNotificationTests
         await using var managerHub = HubTestHelper.CreateConnection(_fixture, seed.Manager.AccessToken);
         await using var strangerHub = HubTestHelper.CreateConnection(_fixture, seed.Stranger.AccessToken);
 
-        var ownerWait = HubTestHelper.WaitNotifyAsync(ownerHub);
-        var assigneeWait = HubTestHelper.WaitNotifyAsync(assigneeHub);
-        var managerWait = HubTestHelper.WaitNotifyAsync(managerHub);
-        var strangerWait = HubTestHelper.WaitNotifyAsync(strangerHub);
+        var ownerWait = HubTestHelper.WaitNotifyAsync(ownerHub, "project.deleted", seed.Project.Id);
+        var assigneeWait = HubTestHelper.WaitNotifyAsync(assigneeHub, "project.deleted", seed.Project.Id);
+        var managerWait = HubTestHelper.WaitNotifyAsync(managerHub, "project.deleted", seed.Project.Id);
+        var strangerWait = HubTestHelper.WaitNotifyAsync(strangerHub, "project.deleted", seed.Project.Id);
 
         await ownerHub.StartAsync();
         await assigneeHub.StartAsync();
