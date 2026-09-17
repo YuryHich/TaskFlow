@@ -96,7 +96,13 @@ namespace Application.Services;
         projectEntity.Id = Guid.NewGuid();
             projectEntity.CreatedAt = DateTime.UtcNow;
             await _projectRepository.CreateProjectAsync(projectEntity);
-            await _appEventPublisher.PublishAsync(new ProjectCreatedEvent(projectEntity.Id, projectEntity.OwnerId));
+            await _appEventPublisher.PublishAsync(new ProjectCreatedEvent(
+                EventId: Guid.NewGuid(),
+                OccurredAt: DateTime.UtcNow,
+                ProjectId: projectEntity.Id,
+                OwnerId: projectEntity.OwnerId,
+                ActorUserId: _currentUser.UserId,
+                Name: projectEntity.Name));
             return projectEntity.Adapt<ProjectDto>();
         }
 
@@ -118,7 +124,11 @@ namespace Application.Services;
                 projectEntity.OwnerId = newOwnerId;
             }
             await _projectRepository.UpdateProjectAsync(projectEntity);
-            await _appEventPublisher.PublishAsync(new ProjectUpdatedEvent(projectEntity.Id));
+            await _appEventPublisher.PublishAsync(new ProjectUpdatedEvent(
+                EventId: Guid.NewGuid(),
+                OccurredAt: DateTime.UtcNow,
+                ProjectId: projectEntity.Id,
+                ActorUserId: _currentUser.UserId));
         }
 
     public async Task DeleteProjectAsync(Guid id)
@@ -127,7 +137,12 @@ namespace Application.Services;
         if (projectEntity is null) throw new NotFoundException("Project not found");
         var audience = await _projectAudience.GetUserIdsAsync(id);
         await _projectRepository.DeleteProjectAsync(id);
-        await _appEventPublisher.PublishAsync(new ProjectDeletedEvent(id, audience));
+        await _appEventPublisher.PublishAsync(new ProjectDeletedEvent(
+            EventId: Guid.NewGuid(),
+            OccurredAt: DateTime.UtcNow,
+            ProjectId: id,
+            ActorUserId: _currentUser.UserId,
+            AudienceUserIds: audience));
         }
 
     private async Task EnsureUserExistsAsync(Guid userId)
