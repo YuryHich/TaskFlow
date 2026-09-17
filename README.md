@@ -2,14 +2,15 @@
 
 Backend-система управления проектами и задачами (трекер для компании).
 
-**Проект в активной разработке.** Сейчас это ASP.NET Core монолит с REST API, JWT, PostgreSQL, узким Redis-кэшем, SignalR и React SPA (`web/`). Слои Domain / Application / Infrastructure / API уже заложены.
+**Проект в активной разработке.** Сейчас это ASP.NET Core **монолит** с REST API, JWT, PostgreSQL, узким Redis-кэшем, SignalR, RabbitMQ + MassTransit 8 и React SPA (`web/`). Слои Domain / Application / Infrastructure / API уже заложены.
 
 ## Стек
 
 - .NET 10, ASP.NET Core Web API
 - EF Core + PostgreSQL (Docker + pgAdmin)
 - Redis: cache-aside (`IDistributedCache`), в тестах — in-memory
-- SignalR: хаб уведомлений `/hubs/notifications`, JWT
+- RabbitMQ + MassTransit **8.3.6** (не v9: коммерческая лицензия)
+- SignalR: хаб `/hubs/notifications`, JWT; доставка аудитории через очередь `taskflow-notifications`
 - React + TypeScript + Vite SPA (`web/`), TanStack Query
 - JWT Bearer (HS256): реализация в Infrastructure, use cases в Application
 - `IPasswordHasher<User>`, FluentValidation, Mapster
@@ -20,16 +21,20 @@ Backend-система управления проектами и задачам
 ## Локальный запуск
 
 1. Инфраструктура: `docker compose up -d` из корня репозитория  
-   Postgres `5432`, pgAdmin `5050`, Redis `6379`, Redis Insight `http://localhost:5540`  
+   Postgres `5432`, pgAdmin `http://localhost:5050`, Redis `6379`, Redis Insight `http://localhost:5540`,  
+   RabbitMQ AMQP `5672`, Management UI `http://localhost:15672` (логин `taskflow`, пароль как `RABBITMQ_DEFAULT_PASS` в compose, по умолчанию `password`).  
    В Insight хост Redis — `taskflow-redis`, порт `6379` (не `localhost`).
 2. Секреты API (Development, User Secrets, не коммитятся):
 
 ```text
 dotnet user-secrets set "ConnectionStrings:DefaultConnection" "<строка к Postgres>" --project API
 dotnet user-secrets set "Jwt:Key" "<строка не короче 32 символов>" --project API
+dotnet user-secrets set "RabbitMQ:Password" "<тот же пароль, что RABBITMQ_DEFAULT_PASS>" --project API
 ```
 
-Строка Redis по умолчанию в `appsettings.json`: `localhost:6379,abortConnect=false,connectTimeout=1000`. API стартует и без Redis (кэш miss, REST жив).
+`RabbitMQ:Password` должен совпадать с паролем брокера, иначе MassTransit получит `ACCESS_REFUSED`. Host/user/vhost — в `appsettings.json`.
+
+Строка Redis по умолчанию в `appsettings.json`: `localhost:6379,abortConnect=false,connectTimeout=1000`. API стартует и без Redis (кэш miss, REST жив). Без RabbitMQ в Development шина не поднимется (REST может слушать порт, realtime и audit — нет).
 
 3. API: `dotnet run --project API --launch-profile http` → `http://localhost:5031`  
    Swagger: `http://localhost:5031/swagger`
@@ -44,11 +49,13 @@ Access token в памяти, refresh в `sessionStorage`. Через ~14 мин
 Миграции уже в репозитории. Если база пустая:  
 `dotnet ef database update --project Infrastructure --startup-project API`
 
-Тесты (нужен поднятый Postgres из compose; Redis **не** нужен — в `Testing` кэш in-memory; dev-база `TaskFlowDB` не используется):
+Тесты (нужен поднятый Postgres из compose; Redis и RabbitMQ **не** нужны: в `Testing` кэш in-memory, MassTransit InMemory; dev-база `TaskFlowDB` не используется):
 
 ```text
 dotnet test API.Tests/API.Tests.csproj
 ```
+
+Скрипты Windows: `scripts/start-apps.cmd` (Chrome, Cursor, VS Code, Spotify, WireGuard, Docker Desktop), `scripts/start-taskflow.cmd` (compose + API + Vite + окна логина и админок).
 
 ## Что уже сделано
 
@@ -85,11 +92,11 @@ dotnet test API.Tests/API.Tests.csproj
 
 На задаче несколько исполнителей: `AssigneeIds[]` (create/update заменяет набор целиком). Мутации проекта и задач — по-прежнему owner или Admin/Manager. Assignee задачу не редактирует.
 
-После `SaveChanges` сервисы публикуют in-process события (`IAppEventPublisher`). Ошибка подписчика не откатывает HTTP-ответ.
+После `SaveChanges` сервисы публикуют события через `IAppEventPublisher`. Ошибка подписчика не откатывает HTTP-ответ. Кэш по-прежнему in-process; SignalR и audit — через шину (Sprint 6).
 
 **Кэш (узкий, cache-aside):** ключи только `project:{id}`, `task:{id}`, `tags:all`. TTL: 5 / 2 / 30 минут (`Cache:*Minutes`). Списки не кэшируются. Source of truth — Postgres. Hit не обходит 403. Инвалидация — `CacheInvalidationHandler` на те же события (теги — `TagCatalogChangedEvent`). Если Redis недоступен — warning и miss, REST работает.
 
-**SignalR:** хаб `[Authorize]` `/hubs/notifications`. Подключение: заголовок `Authorization: Bearer` или query `?access_token=` (только путь `/hubs`). Клиент слушает метод `Notify`, тело `{ eventName, projectId, taskId, commentId }`.
+**SignalR:** хаб `[Authorize]` `/hubs/notifications`. Подключение: заголовок `Authorization: Bearer` или query `?access_token=` (только путь `/hubs`). Клиент слушает метод `Notify`, тело `{ eventName, projectId, taskId, commentId }`. С Sprint 6 `Notify` уходит из `NotificationConsumer`, не из HTTP-пайплайна.
 
 Имена: `project.created|updated|deleted`, `task.created|updated|deleted`, `comment.added|updated|deleted`. Теги в хаб не уходят. Доставка `Clients.Users(audience)`, не groups и не `All`. На delete проекта/задачи аудитория считается **до** удаления. Access 15 минут: клиент сам делает refresh и открывает новое соединение (reconnect на бэке нет).
 
@@ -123,13 +130,51 @@ dotnet test API.Tests/API.Tests.csproj
 
 Добор API для UI: CORS (`http://localhost:5173`), `GET /api/users/me`, `GET /api/users/directory`. `GET /api/users` по-прежнему только Admin/Manager.
 
+### Sprint 6 — RabbitMQ + MassTransit (event-driven monolith)
+
+Один процесс API. Application не ссылается на MassTransit: сервисы по-прежнему вызывают `IAppEventPublisher`.
+
+**In-process:** инвалидация Redis (`CacheInvalidationHandler`), каталог тегов (`TagCatalogChangedEvent` в шину не публикуется).
+
+**Шина (project / task / comment):** после успешного сохранения `BusBridgeHandler` делает `Publish`. Две очереди (fan-out, не competing consumers):
+
+- `taskflow-notifications` → `NotificationConsumer` → прежняя аудитория SignalR (`Clients.Users`)
+- `taskflow-audit` → `AuditConsumer` → таблица `AuditLogs` (unique `EventId`, повтор доставки не плодит строки)
+
+Контракт хаба не менялся. Consumer и хаб в **одном** хосте — учебный backplane, не выигрыш latency.
+
+**Dual-write:** Postgres уже закоммичен, затем publish. Если Rabbit недоступен, HTTP-ответ всё равно успешен, тоста и строки аудита может не быть. Outbox в этом спринте не внедряли.
+
+MassTransit **8.3.6** (Apache 2.0). v9 требует лицензию (`MT_LICENSE`) — в pet-project не используем.
+
+`GET /api/audit?take=50` — только Admin/Manager. Пароль брокера — User Secrets `RabbitMQ:Password`, тот же, что у контейнера.
+
+В тестах (`Environment=Testing`) транспорт InMemory; живой RabbitMQ для `dotnet test` не нужен.
+
+```text
+                    Client
+              REST /          SignalR
+                │                ▲
+                ▼                │
+               API               │
+                │                │
+         ┌──────┼──────┐         │
+         ▼      ▼      ▼         │
+     Postgres Redis  Event       │
+                     Publisher   │
+                         │       │
+                    MassTransit  │
+                         │       │
+                      RabbitMQ   │
+                    /          \ │
+                   ▼            ▼
+            notifications     audit
+                   │            │
+                   ▼            ▼
+                SignalR      AuditLogs
+```
+
 ## Что будет дальше
-
-### Sprint 6 — события и очереди
-
-- Вынести in-process события во внешние очереди
-- RabbitMQ (producer / consumer, exchanges, очереди)
-- MassTransit
 
 ### Микросервисы и gRPC
 
@@ -144,8 +189,8 @@ dotnet test API.Tests/API.Tests.csproj
 
 ### Инфраструктура
 
-- Dockerfile сервисов, Compose на всю систему (сейчас в compose только Postgres, pgAdmin, Redis, Insight; API — `dotnet run`)
-- RabbitMQ, Kafka и сервисы в контейнерах
+- Dockerfile сервисов, Compose на всю систему (сейчас в compose Postgres, pgAdmin, Redis, Insight, RabbitMQ; API — `dotnet run`)
+- Kafka и сервисы в контейнерах
 - Настройки через переменные окружения, health checks, базовый logging / monitoring
 
 ### Целевая схема

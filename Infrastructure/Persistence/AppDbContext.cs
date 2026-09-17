@@ -19,6 +19,7 @@ namespace Infrastructure.Persistence;
         public DbSet<Domain.Models.Tag> Tags { get; set; } = null!;
         public DbSet<Domain.Models.Comment> Comments { get; set; } = null!;
         public DbSet<Domain.Models.RefreshToken> RefreshTokens { get; set; } = null!;
+        public DbSet<Domain.Models.AuditLog> AuditLogs { get; set; } = null!;
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
