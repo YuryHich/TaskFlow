@@ -102,7 +102,14 @@ public class TaskService : ITaskService
         taskEntity.Assignees = assignees;
 
         await _taskRepository.CreateTaskAsync(taskEntity);
-        await _appEventPublisher.PublishAsync(new TaskCreatedEvent(taskEntity.Id, taskEntity.ProjectId));
+        await _appEventPublisher.PublishAsync(new TaskCreatedEvent(
+            EventId: Guid.NewGuid(),
+            OccurredAt: DateTime.UtcNow,
+            TaskId: taskEntity.Id,
+            ProjectId: taskEntity.ProjectId,
+            ActorUserId: _currentUser.UserId,
+            Title: taskEntity.Title,
+            AssigneeIds: taskEntity.Assignees.Select(a => a.Id).ToList()));
         return taskEntity.Adapt<TaskDto>();
     }
 

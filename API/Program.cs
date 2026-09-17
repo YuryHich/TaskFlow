@@ -30,6 +30,7 @@ using Microsoft.AspNetCore.SignalR;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using API.Hubs;
+using Infrastructure.Messaging;
 
 
 var builder = WebApplication.CreateBuilder(args);
@@ -56,6 +57,8 @@ builder.Services.AddScoped<IAuthService, AuthService>();
 builder.Services.AddScoped<IJwtService, JwtService>();
 builder.Services.AddScoped<IProjectAudience, ProjectAudience>();
 builder.Services.AddScoped<IAppEventPublisher, AppEventPublisher>();
+builder.Services.AddScoped<IAppEventHandler<TaskCreatedEvent>, BusBridgeHandler>();
+builder.Services.AddTaskFlowMessaging(builder.Configuration, builder.Environment);
 builder.Services.AddTaskFlowCache(builder.Configuration, builder.Environment);
 builder.Services.AddHttpContextAccessor();
 builder.Services.AddScoped<IAppEventHandler<ProjectCreatedEvent>, CacheInvalidationHandler>();
