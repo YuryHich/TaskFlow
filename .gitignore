@@ -26,8 +26,9 @@
 secrets.json
 
 # Local sprint roadmaps / study notes (not part of the product)
-*Sprint*Roadmap.md
+*Sprint*Roadmap*
 отчёт по спринтам 7-8.md
+cache-test-output.txt
 
 # Test, publish, logs
 TestResults/

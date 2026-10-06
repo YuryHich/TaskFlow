@@ -21,12 +21,31 @@ Backend-система управления проектами и задачам
 
 ## Локальный запуск
 
-1. Инфраструктура: `docker compose up -d` из корня репозитория  
-   Postgres `5432`, pgAdmin `http://localhost:5050`, Redis `6379`, Redis Insight `http://localhost:5540`,  
-   RabbitMQ AMQP `5672`, Management UI `http://localhost:15672` (логин `taskflow`, пароль как `RABBITMQ_DEFAULT_PASS` в compose, по умолчанию `password`),  
-   Kafka `localhost:9092` (топик `taskflow.events`, 3 partition; внутри сети брокера — `taskflow-kafka:19092`). Логи брокера не вынесены в volume: образ пишет их от пользователя без прав на Docker volume, поэтому пересоздание контейнера стирает топик, а `taskflow-kafka-init` создаёт его заново. Логи брокера живут внутри контейнера: том не смонтирован, потому что образ `apache/kafka` пишет их от пользователя без прав на Docker volume.  
-   В Insight хост Redis — `taskflow-redis`, порт `6379` (не `localhost`).
-2. Секреты API (Development, User Secrets, не коммитятся):
+Из корня репозитория:
+
+```text
+docker compose up -d --build
+```
+
+Сайт: `http://localhost:5173`. Swagger API: `http://localhost:5031/swagger`.
+
+Compose поднимает Postgres, pgAdmin, Redis, Redis Insight, RabbitMQ, Kafka и четыре приложения: API `:5031`, Analytics `:5040`, Notification `:5032`, nginx со SPA на `:5173`. Nginx отдаёт статику и проксирует `/api/analytics` на Analytics, остальные `/api` на API, `/hubs` на Notification (WebSocket).
+
+Миграции API и Analytics применяются при старте контейнеров. База `TaskFlowAnalytics` создаётся скриптом `docker/init-extra-dbs.sql` только на пустом volume Postgres. Если volume уже был:
+
+```text
+docker exec -it taskflow-postgres psql -U postgres -c "CREATE DATABASE \"TaskFlowAnalytics\";"
+```
+
+Порты инфраструктуры: Postgres `5432`, pgAdmin `http://localhost:5050`, Redis `6379`, Redis Insight `http://localhost:5540` (хост внутри сети — `taskflow-redis`, порт `6379`), RabbitMQ `5672`, Management UI `http://localhost:15672` (логин `taskflow`, пароль `password`), Kafka с хоста `localhost:9092`. Логи Kafka хранятся внутри контейнера: образ не может писать в Docker volume от своего пользователя. После пересоздания контейнера топик создаёт `taskflow-kafka-init`.
+
+JWT и пароль брокера в Compose — локальные значения из `docker-compose.yml` (`Jwt__Key`, `RabbitMQ__Password`). Для публикации наружу их нужно заменить.
+
+### Запуск процессов на хосте
+
+Тот же стек без образов приложений: инфраструктура `docker compose up -d` (можно поднять только postgres, redis, rabbitmq, kafka), затем три `dotnet run` и Vite.
+
+Секреты API (Development, User Secrets, не коммитятся):
 
 ```text
 dotnet user-secrets set "ConnectionStrings:DefaultConnection" "<строка к Postgres>" --project API
@@ -38,13 +57,7 @@ dotnet user-secrets set "RabbitMQ:Password" "<тот же пароль, что R
 
 Строка Redis по умолчанию в `appsettings.json`: `localhost:6379,abortConnect=false,connectTimeout=1000`. API стартует и без Redis (кэш miss, REST жив). Без RabbitMQ в Development шина не поднимется (REST может слушать порт, realtime и audit — нет). Без Kafka REST тоже жив: publish в топик логируется и пропускается.
 
-Вторая база `TaskFlowAnalytics` создаётся скриптом `docker/init-extra-dbs.sql`, но **только на пустом** volume Postgres. Если `taskflow_pgdata` уже существует:
-
-```text
-docker exec -it taskflow-postgres psql -U postgres -c "CREATE DATABASE \"TaskFlowAnalytics\";"
-```
-
-3. Процессы (три `dotnet run`, секреты `Jwt:Key` и `RabbitMQ:Password` общие — у Analytics и Notification тот же User Secrets id, что у API):
+Процессы на хосте. `Jwt:Key` и `RabbitMQ:Password` общие: у Analytics и Notification тот же User Secrets id, что у API. Для Analytics ещё нужна строка `ConnectionStrings:Analytics` на базу `TaskFlowAnalytics`.
 
 ```text
 dotnet run --project API --launch-profile http            → http://localhost:5031
@@ -54,10 +67,10 @@ dotnet run --project Notification --launch-profile http   → http://localhost:5
 
 Swagger API: `http://localhost:5031/swagger`. В Development хаб на API не слушает (`/hubs` на `:5031` → 404). Тосты идут в Notification. Audit остаётся consumer'ом внутри API.
 
-4. Фронт: `npm install` (один раз) и `npm run dev` в `web/` → `http://localhost:5173`  
-   Vite: `/api/analytics` → `:5040`, остальные `/api` → `:5031`, `/hubs` → `:5032` (WebSocket). Пустой `VITE_API_URL` — same-origin через proxy. Не задавайте `VITE_API_URL` на прямой порт API: аналитика и хаб обойдут прокси. CORS разрешает прямой origin `http://localhost:5173`, если proxy не используете.
+Фронт: `npm install` (один раз) и `npm run dev` в `web/` → `http://localhost:5173`  
+   Vite: `/api/analytics` → `:5040`, остальные `/api` → `:5031`, `/hubs` → `:5032` (WebSocket). Пустой `VITE_API_URL` оставляет запросы на том же origin, и их забирает proxy. Прямой `VITE_API_URL` на порт API обходит proxy, и аналитика с хабом перестают открываться. CORS разрешает origin `http://localhost:5173`, если proxy не используется.
 
-   Если путь репозитория содержит `#` (например `D:\C#\...`), `npm run dev` поднимает Vite через junction без `#` (`resolve.preserveSymlinks`). Встроенный браузер Cursor может отдавать 404 на `/@vite/client` — откройте тот же URL в обычном Chrome или соберите превью: `npm run build` и `npm run preview` (`http://localhost:4173`).
+   Если путь репозитория содержит `#` (например `D:\C#\...`), `npm run dev` поднимает Vite через junction без `#` (`resolve.preserveSymlinks`). Встроенный браузер IDE может отдавать 404 на `/@vite/client` — откройте тот же URL в обычном Chrome или соберите превью: `npm run build` и `npm run preview` (`http://localhost:4173`).
 
 Access token в памяти, refresh в `sessionStorage`. Через ~14 минут клиент сам обновляет access (`POST /api/auth/refresh`, ротация). F5 восстанавливает сессию. Два пользователя — два окна/инкогнито.
 
@@ -187,15 +200,11 @@ React --/api--> API :5031 --Rabbit--> Notification :5032 --SignalR--> React
 
 ## Что будет дальше
 
-CRUD (users / projects / tasks) остаётся одним процессом. Отдельные сервисы — только side effect и read model.
-
-Уже сделано в Sprint 7–8: Kafka + Analytics (`:5040`, база `TaskFlowAnalytics`) и Notification (`:5032`, без своей БД). Audit по-прежнему в API. Нет gRPC, gateway, outbox и разрезания CRUD. Dockerfile'ы процессов не входят в эти спринты: API, Analytics и Notification запускаются через `dotnet run`.
+Пользователи, проекты и задачи остаются в одном API. Отдельные процессы — уведомления и аналитика. Следующий шаг по надёжности — outbox: сохранение сущности и публикация в RabbitMQ и Kafka в одной транзакции, чтобы событие не терялось, если брокер недоступен после commit в Postgres.
 
 ### Replay аналитики
 
-Цифры eventual consistent. Проверка догона:
+Цифры на `/analytics` могут отставать от REST на несколько секунд. Проверка догона:
 
-1. Остановить Analytics, создать задачи через API, запустить Analytics снова — consumer group продолжит с сохранённого offset.
-2. Пересобрать с начала: остановить Analytics, в `TaskFlowAnalytics` выполнить `TRUNCATE "ProcessedEvents", "TaskFacts", "ProjectFacts";`, в `Analytics/appsettings.json` выставить `Kafka:ResetToBeginning` = `true`, запустить, дождаться цифр, вернуть флаг в `false`. Иначе каждый старт будет читать топик с нуля (идемпотентность не задвоит факты, но сделает старт долгим).
-
-Подробный разбор файлов, флоу и теория — в `отчёт по спринтам 7-8.md`.
+1. Остановить Analytics, создать задачи через API, запустить Analytics снова — группа `taskflow-analytics` продолжит с сохранённого offset.
+2. Пересобрать модель с начала лога: остановить Analytics, в `TaskFlowAnalytics` выполнить `TRUNCATE "ProcessedEvents", "TaskFacts", "ProjectFacts";`, выставить `Kafka:ResetToBeginning` = `true`, запустить, дождаться цифр, вернуть флаг в `false`.

@@ -167,6 +167,13 @@ builder.Services.AddAuthorization(options =>
 
 var app = builder.Build();
 
+if (app.Configuration.GetValue("Database:ApplyMigrations", false))
+{
+    using var scope = app.Services.CreateScope();
+    var db = scope.ServiceProvider.GetRequiredService<Infrastructure.Persistence.AppDbContext>();
+    db.Database.Migrate();
+}
+
 app.UseExceptionHandler();
 
 // Configure the HTTP request pipeline.
@@ -177,13 +184,13 @@ if (app.Environment.IsDevelopment())
     app.UseSwaggerUI();
 }
 
-if (!app.Environment.IsEnvironment("Testing"))
-{
+var urls = app.Configuration["ASPNETCORE_URLS"] ?? "";
+if (!app.Environment.IsEnvironment("Testing") && urls.Contains("https", StringComparison.OrdinalIgnoreCase))
     app.UseHttpsRedirection();
-}
 app.UseCors();
 app.UseAuthentication();
 app.UseAuthorization();
+app.MapGet("/health", () => Results.Ok()).AllowAnonymous();
 app.MapControllers();
 if (app.Environment.IsEnvironment("Testing"))
     app.MapHub<NotificationHub>("/hubs/notifications");

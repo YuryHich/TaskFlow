@@ -126,6 +126,101 @@ services:
         exit 1
     restart: "no"
 
+  taskflow-api:
+    container_name: taskflow-api
+    build:
+      context: .
+      dockerfile: API/Dockerfile
+    ports:
+      - "5031:8080"
+    environment:
+      ASPNETCORE_ENVIRONMENT: Development
+      ASPNETCORE_URLS: http://+:8080
+      Database__ApplyMigrations: "true"
+      ConnectionStrings__DefaultConnection: Host=taskflow-postgres;Port=5432;Database=TaskFlowDB;Username=postgres;Password=password
+      ConnectionStrings__Redis: taskflow-redis:6379,abortConnect=false,connectTimeout=1000
+      Jwt__Key: TaskFlowLocalDevKey_ChangeMe_32chars!
+      Jwt__Issuer: TaskFlow
+      Jwt__Audience: TaskFlow
+      RabbitMQ__Host: taskflow-rabbitmq
+      RabbitMQ__Port: "5672"
+      RabbitMQ__Username: taskflow
+      RabbitMQ__Password: password
+      RabbitMQ__VirtualHost: /
+      Kafka__BootstrapServers: taskflow-kafka:19092
+      Kafka__Topic: taskflow.events
+    depends_on:
+      taskflow-postgres:
+        condition: service_healthy
+      taskflow-redis:
+        condition: service_healthy
+      taskflow-rabbitmq:
+        condition: service_healthy
+      taskflow-kafka-init:
+        condition: service_completed_successfully
+    restart: unless-stopped
+
+  taskflow-analytics:
+    container_name: taskflow-analytics
+    build:
+      context: .
+      dockerfile: Analytics/Dockerfile
+    ports:
+      - "5040:8080"
+    environment:
+      ASPNETCORE_ENVIRONMENT: Development
+      ASPNETCORE_URLS: http://+:8080
+      ConnectionStrings__Analytics: Host=taskflow-postgres;Port=5432;Database=TaskFlowAnalytics;Username=postgres;Password=password
+      Jwt__Key: TaskFlowLocalDevKey_ChangeMe_32chars!
+      Jwt__Issuer: TaskFlow
+      Jwt__Audience: TaskFlow
+      Kafka__BootstrapServers: taskflow-kafka:19092
+      Kafka__Topic: taskflow.events
+      Kafka__ConsumerGroup: taskflow-analytics
+      Kafka__ResetToBeginning: "false"
+    depends_on:
+      taskflow-postgres:
+        condition: service_healthy
+      taskflow-kafka-init:
+        condition: service_completed_successfully
+    restart: unless-stopped
+
+  taskflow-notification:
+    container_name: taskflow-notification
+    build:
+      context: .
+      dockerfile: Notification/Dockerfile
+    ports:
+      - "5032:8080"
+    environment:
+      ASPNETCORE_ENVIRONMENT: Development
+      ASPNETCORE_URLS: http://+:8080
+      Jwt__Key: TaskFlowLocalDevKey_ChangeMe_32chars!
+      Jwt__Issuer: TaskFlow
+      Jwt__Audience: TaskFlow
+      RabbitMQ__Host: taskflow-rabbitmq
+      RabbitMQ__Port: "5672"
+      RabbitMQ__Username: taskflow
+      RabbitMQ__Password: password
+      RabbitMQ__VirtualHost: /
+    depends_on:
+      taskflow-rabbitmq:
+        condition: service_healthy
+    restart: unless-stopped
+
+  taskflow-web:
+    container_name: taskflow-web
+    build:
+      context: ./web
+      dockerfile: Dockerfile
+    ports:
+      - "5173:80"
+    depends_on:
+      - taskflow-api
+      - taskflow-analytics
+      - taskflow-notification
+    restart: unless-stopped
+
 volumes:
   taskflow_pgdata:
   taskflow_pgadmin:

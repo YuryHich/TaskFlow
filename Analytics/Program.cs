@@ -60,6 +60,7 @@ if (!app.Environment.IsEnvironment("Testing"))
 app.UseCors();
 app.UseAuthentication();
 app.UseAuthorization();
+app.MapGet("/health", () => Results.Ok()).AllowAnonymous();
 app.MapControllers();
 app.Run();
 
