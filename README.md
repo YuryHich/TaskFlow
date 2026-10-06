@@ -91,8 +91,6 @@ dotnet test API.Tests/API.Tests.csproj
 dotnet test Analytics.Tests/Analytics.Tests.csproj
 ```
 
-Скрипты Windows: `scripts/start-apps.cmd` (Chrome, Cursor, VS Code, Spotify, WireGuard, Docker Desktop), `scripts/start-taskflow.cmd` (compose + API + Vite + окна логина и админок).
-
 ## Что уже сделано
 
 ### Sprint 1 — доменная модель и CRUD
