@@ -102,6 +102,7 @@ public class TaskService : ITaskService
         taskEntity.Assignees = assignees;
 
         await _taskRepository.CreateTaskAsync(taskEntity);
+        var audience = await _projectAudience.GetUserIdsAsync(taskEntity.ProjectId);
         await _appEventPublisher.PublishAsync(new TaskCreatedEvent(
             EventId: Guid.NewGuid(),
             OccurredAt: DateTime.UtcNow,
@@ -109,7 +110,9 @@ public class TaskService : ITaskService
             ProjectId: taskEntity.ProjectId,
             ActorUserId: _currentUser.UserId,
             Title: taskEntity.Title,
-            AssigneeIds: taskEntity.Assignees.Select(a => a.Id).ToList()));
+            AssigneeIds: taskEntity.Assignees.Select(a => a.Id).ToList(),
+            Status: taskEntity.Status,
+            AudienceUserIds: audience));
         return taskEntity.Adapt<TaskDto>();
     }
 
@@ -134,12 +137,16 @@ public class TaskService : ITaskService
             taskEntity.Assignees.Add(assignee);
 
         await _taskRepository.UpdateTaskAsync(taskEntity);
+        var audience = await _projectAudience.GetUserIdsAsync(taskEntity.ProjectId);
         await _appEventPublisher.PublishAsync(new TaskUpdatedEvent(
             EventId: Guid.NewGuid(),
             OccurredAt: DateTime.UtcNow,
             TaskId: taskEntity.Id,
             ProjectId: taskEntity.ProjectId,
-            ActorUserId: _currentUser.UserId));
+            ActorUserId: _currentUser.UserId,
+            Title: taskEntity.Title,
+            Status: taskEntity.Status,
+            AudienceUserIds: audience));
     }
 
     public async Task DeleteTaskAsync(Guid id)

@@ -31,6 +31,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using API.Hubs;
 using Infrastructure.Messaging;
+using Infrastructure.Streaming;
 
 
 var builder = WebApplication.CreateBuilder(args);
@@ -60,6 +61,7 @@ builder.Services.AddScoped<IJwtService, JwtService>();
 builder.Services.AddScoped<IProjectAudience, ProjectAudience>();
 builder.Services.AddScoped<IAppEventPublisher, AppEventPublisher>();
 builder.Services.AddTaskFlowMessaging(builder.Configuration, builder.Environment);
+builder.Services.AddTaskFlowKafka(builder.Configuration, builder.Environment);
 builder.Services.AddTaskFlowCache(builder.Configuration, builder.Environment);
 builder.Services.AddHttpContextAccessor();
 builder.Services.AddScoped<IAppEventHandler<ProjectCreatedEvent>, CacheInvalidationHandler>();
@@ -69,7 +71,6 @@ builder.Services.AddScoped<IAppEventHandler<TaskCreatedEvent>, CacheInvalidation
 builder.Services.AddScoped<IAppEventHandler<TaskUpdatedEvent>, CacheInvalidationHandler>();
 builder.Services.AddScoped<IAppEventHandler<TaskDeletedEvent>, CacheInvalidationHandler>();
 builder.Services.AddScoped<IAppEventHandler<TagCatalogChangedEvent>, CacheInvalidationHandler>();
-builder.Services.AddScoped<SignalRNotificationHandler>();
 builder.Services.AddScoped<BusBridgeHandler>();
 builder.Services.AddScoped<IAppEventHandler<ProjectCreatedEvent>>(sp => sp.GetRequiredService<BusBridgeHandler>());
 builder.Services.AddScoped<IAppEventHandler<ProjectUpdatedEvent>>(sp => sp.GetRequiredService<BusBridgeHandler>());
@@ -80,13 +81,27 @@ builder.Services.AddScoped<IAppEventHandler<TaskDeletedEvent>>(sp => sp.GetRequi
 builder.Services.AddScoped<IAppEventHandler<CommentAddedEvent>>(sp => sp.GetRequiredService<BusBridgeHandler>());
 builder.Services.AddScoped<IAppEventHandler<CommentUpdatedEvent>>(sp => sp.GetRequiredService<BusBridgeHandler>());
 builder.Services.AddScoped<IAppEventHandler<CommentDeletedEvent>>(sp => sp.GetRequiredService<BusBridgeHandler>());
+builder.Services.AddScoped<KafkaBridgeHandler>();
+builder.Services.AddScoped<IAppEventHandler<ProjectCreatedEvent>>(sp => sp.GetRequiredService<KafkaBridgeHandler>());
+builder.Services.AddScoped<IAppEventHandler<ProjectUpdatedEvent>>(sp => sp.GetRequiredService<KafkaBridgeHandler>());
+builder.Services.AddScoped<IAppEventHandler<ProjectDeletedEvent>>(sp => sp.GetRequiredService<KafkaBridgeHandler>());
+builder.Services.AddScoped<IAppEventHandler<TaskCreatedEvent>>(sp => sp.GetRequiredService<KafkaBridgeHandler>());
+builder.Services.AddScoped<IAppEventHandler<TaskUpdatedEvent>>(sp => sp.GetRequiredService<KafkaBridgeHandler>());
+builder.Services.AddScoped<IAppEventHandler<TaskDeletedEvent>>(sp => sp.GetRequiredService<KafkaBridgeHandler>());
+builder.Services.AddScoped<IAppEventHandler<CommentAddedEvent>>(sp => sp.GetRequiredService<KafkaBridgeHandler>());
+builder.Services.AddScoped<IAppEventHandler<CommentUpdatedEvent>>(sp => sp.GetRequiredService<KafkaBridgeHandler>());
+builder.Services.AddScoped<IAppEventHandler<CommentDeletedEvent>>(sp => sp.GetRequiredService<KafkaBridgeHandler>());
 builder.Services.AddScoped<ICurrentUser, CurrentUser>();
 builder.Services.AddScoped<IAuthorizationHandler, ProjectOwnerHandler>();
 builder.Services.AddScoped<IAuthorizationHandler, ProjectAccessHandler>();
 builder.Services.AddScoped<IAuthorizationHandler, TaskAccessHandler>();
-builder.Services.AddSignalR();
-builder.Services.AddSingleton<IUserIdProvider, NameIdentifierUserIdProvider>();
-builder.Services.AddSingleton<IRealtimeNotifier, HubRealtimeNotifier>();
+if (builder.Environment.IsEnvironment("Testing"))
+{
+    builder.Services.AddSignalR();
+    builder.Services.AddSingleton<IUserIdProvider, NameIdentifierUserIdProvider>();
+    builder.Services.AddSingleton<IRealtimeNotifier, HubRealtimeNotifier>();
+    builder.Services.AddScoped<SignalRNotificationHandler>();
+}
 builder.Services.Configure<JwtOptions>(builder.Configuration.GetSection("Jwt"));
 builder.Services.AddScoped<IPasswordHasher<User>, PasswordHasher<User>>();
 builder.Services.AddControllers(options =>
@@ -170,7 +185,8 @@ app.UseCors();
 app.UseAuthentication();
 app.UseAuthorization();
 app.MapControllers();
-app.MapHub<NotificationHub>("/hubs/notifications");
+if (app.Environment.IsEnvironment("Testing"))
+    app.MapHub<NotificationHub>("/hubs/notifications");
 
 
 app.Run();

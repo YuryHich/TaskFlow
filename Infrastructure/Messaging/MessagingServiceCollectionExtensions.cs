@@ -20,12 +20,14 @@ public static class MessagingServiceCollectionExtensions
 
         services.AddMassTransit(x =>
         {
-            x.AddConsumer<NotificationConsumer>();
+            var hostNotifications = environment.IsEnvironment("Testing");
+            if (hostNotifications)
+                x.AddConsumer<NotificationConsumer>();
             x.AddConsumer<AuditConsumer>();
 
-            if (environment.IsEnvironment("Testing"))
+            if (hostNotifications)
             {
-                x.UsingInMemory((context, cfg) => ConfigureReceiveEndpoints(context, cfg));
+                x.UsingInMemory((context, cfg) => ConfigureReceiveEndpoints(context, cfg, hostNotifications: true));
             }
             else
             {
@@ -36,7 +38,7 @@ public static class MessagingServiceCollectionExtensions
                         h.Username(rabbit.UserName);
                         h.Password(rabbit.Password);
                     });
-                    ConfigureReceiveEndpoints(context, cfg);
+                    ConfigureReceiveEndpoints(context, cfg, hostNotifications: false);
                 });
             }
         });
@@ -46,18 +48,22 @@ public static class MessagingServiceCollectionExtensions
 
     private static void ConfigureReceiveEndpoints(
         IBusRegistrationContext context,
-        IBusFactoryConfigurator cfg)
+        IBusFactoryConfigurator cfg,
+        bool hostNotifications)
     {
-        cfg.ReceiveEndpoint("taskflow-notifications", e =>
+        if (hostNotifications)
         {
-            e.PrefetchCount = 16;
-            e.UseMessageRetry(r => r.Exponential(
-                retryLimit: 3,
-                minInterval: TimeSpan.FromSeconds(1),
-                maxInterval: TimeSpan.FromSeconds(8),
-                intervalDelta: TimeSpan.FromSeconds(2)));
-            e.ConfigureConsumer<NotificationConsumer>(context);
-        });
+            cfg.ReceiveEndpoint("taskflow-notifications", e =>
+            {
+                e.PrefetchCount = 16;
+                e.UseMessageRetry(r => r.Exponential(
+                    retryLimit: 3,
+                    minInterval: TimeSpan.FromSeconds(1),
+                    maxInterval: TimeSpan.FromSeconds(8),
+                    intervalDelta: TimeSpan.FromSeconds(2)));
+                e.ConfigureConsumer<NotificationConsumer>(context);
+            });
+        }
 
         cfg.ReceiveEndpoint("taskflow-audit", e =>
         {

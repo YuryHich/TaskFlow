@@ -18,6 +18,7 @@ public class CommentService : ICommentService
     private readonly ICurrentUser _currentUser;
     private readonly IAuthorizationService _authorizationService;
     private readonly IAppEventPublisher _appEventPublisher;
+    private readonly IProjectAudience _projectAudience;
 
     public CommentService(
         ICommentRepository commentRepository,
@@ -25,7 +26,8 @@ public class CommentService : ICommentService
         IProjectRepository projectRepository,
         ICurrentUser currentUser,
         IAuthorizationService authorizationService,
-        IAppEventPublisher appEventPublisher)
+        IAppEventPublisher appEventPublisher,
+        IProjectAudience projectAudience)
     {
         _commentRepository = commentRepository;
         _taskRepository = taskRepository;
@@ -33,6 +35,7 @@ public class CommentService : ICommentService
         _currentUser = currentUser;
         _authorizationService = authorizationService;
         _appEventPublisher = appEventPublisher;
+        _projectAudience = projectAudience;
     }
 
     public async Task<IEnumerable<CommentDto>> GetCommentsAsync()
@@ -66,13 +69,15 @@ public class CommentService : ICommentService
         commentEntity.CreatedAt = DateTime.UtcNow;
 
         await _commentRepository.CreateCommentAsync(commentEntity);
+        var audience = await _projectAudience.GetUserIdsAsync(task.ProjectId);
         await _appEventPublisher.PublishAsync(new CommentAddedEvent(
             EventId: Guid.NewGuid(),
             OccurredAt: DateTime.UtcNow,
             CommentId: commentEntity.Id,
             TaskId: commentEntity.TaskId,
             ProjectId: task.ProjectId,
-            ActorUserId: _currentUser.UserId));
+            ActorUserId: _currentUser.UserId,
+            AudienceUserIds: audience));
         return commentEntity.Adapt<CommentDto>();
     }
 
@@ -87,13 +92,15 @@ public class CommentService : ICommentService
         var task = await EnsureTaskAccessAsync(commentEntity.TaskId);
         comment.Adapt(commentEntity);
         await _commentRepository.UpdateCommentAsync(commentEntity);
+        var audience = await _projectAudience.GetUserIdsAsync(task.ProjectId);
         await _appEventPublisher.PublishAsync(new CommentUpdatedEvent(
             EventId: Guid.NewGuid(),
             OccurredAt: DateTime.UtcNow,
             CommentId: commentEntity.Id,
             TaskId: commentEntity.TaskId,
             ProjectId: task.ProjectId,
-            ActorUserId: _currentUser.UserId));
+            ActorUserId: _currentUser.UserId,
+            AudienceUserIds: audience));
     }
 
     public async Task DeleteCommentAsync(Guid id)
@@ -101,6 +108,7 @@ public class CommentService : ICommentService
         var commentEntity = await _commentRepository.GetCommentByIdAsync(id);
         if (commentEntity is null) throw new NotFoundException("Comment not found");
         var task = await EnsureTaskAccessAsync(commentEntity.TaskId);
+        var audience = await _projectAudience.GetUserIdsAsync(task.ProjectId);
         await _commentRepository.DeleteCommentAsync(id);
         await _appEventPublisher.PublishAsync(new CommentDeletedEvent(
             EventId: Guid.NewGuid(),
@@ -108,7 +116,8 @@ public class CommentService : ICommentService
             CommentId: commentEntity.Id,
             TaskId: commentEntity.TaskId,
             ProjectId: task.ProjectId,
-            ActorUserId: _currentUser.UserId));
+            ActorUserId: _currentUser.UserId,
+            AudienceUserIds: audience));
     }
 
     private async Task<WorkTask> EnsureTaskAccessAsync(Guid taskId)

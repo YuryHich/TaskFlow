@@ -15,6 +15,7 @@ export function Layout() {
           <nav>
             <NavLink to="/projects" end>Projects</NavLink>
             <NavLink to="/tags">Tags</NavLink>
+            {isStaff && <NavLink to="/analytics">Analytics</NavLink>}
             {isStaff && <NavLink to="/users">Users</NavLink>}
             <NavLink to="/profile">Profile</NavLink>
           </nav>

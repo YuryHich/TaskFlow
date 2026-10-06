@@ -117,6 +117,8 @@ h2 { font-size: 1.15rem; }
   -webkit-box-orient: vertical;
   overflow: hidden;
 }
+.grid { width: 100%; border-collapse: collapse; }
+.grid th, .grid td { text-align: left; padding: 0.45rem 0.5rem; border-bottom: 1px solid var(--line); }
 .view-toggle {
   display: inline-flex;
   border: 1px solid var(--line);

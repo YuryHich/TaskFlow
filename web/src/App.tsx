@@ -2,6 +2,7 @@ import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom";
 import { GuestOnly, RequireAuth, RequireStaff } from "./components/RequireAuth";
 import { Layout } from "./components/Layout";
 import { LoginPage } from "./pages/Login";
+import { AnalyticsPage } from "./pages/Analytics";
 import { ProfilePage } from "./pages/Profile";
 import { ProjectPage } from "./pages/Project";
 import { ProjectsPage } from "./pages/Projects";
@@ -27,6 +28,7 @@ export function App() {
             <Route path="/profile" element={<ProfilePage />} />
             <Route element={<RequireStaff />}>
               <Route path="/users" element={<UsersPage />} />
+              <Route path="/analytics" element={<AnalyticsPage />} />
             </Route>
           </Route>
         </Route>

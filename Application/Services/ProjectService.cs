@@ -96,13 +96,15 @@ namespace Application.Services;
         projectEntity.Id = Guid.NewGuid();
             projectEntity.CreatedAt = DateTime.UtcNow;
             await _projectRepository.CreateProjectAsync(projectEntity);
+            var audience = await _projectAudience.GetUserIdsAsync(projectEntity.Id);
             await _appEventPublisher.PublishAsync(new ProjectCreatedEvent(
                 EventId: Guid.NewGuid(),
                 OccurredAt: DateTime.UtcNow,
                 ProjectId: projectEntity.Id,
                 OwnerId: projectEntity.OwnerId,
                 ActorUserId: _currentUser.UserId,
-                Name: projectEntity.Name));
+                Name: projectEntity.Name,
+                AudienceUserIds: audience));
             return projectEntity.Adapt<ProjectDto>();
         }
 
@@ -124,11 +126,14 @@ namespace Application.Services;
                 projectEntity.OwnerId = newOwnerId;
             }
             await _projectRepository.UpdateProjectAsync(projectEntity);
+            var audience = await _projectAudience.GetUserIdsAsync(projectEntity.Id);
             await _appEventPublisher.PublishAsync(new ProjectUpdatedEvent(
                 EventId: Guid.NewGuid(),
                 OccurredAt: DateTime.UtcNow,
                 ProjectId: projectEntity.Id,
-                ActorUserId: _currentUser.UserId));
+                ActorUserId: _currentUser.UserId,
+                Name: projectEntity.Name,
+                AudienceUserIds: audience));
         }
 
     public async Task DeleteProjectAsync(Guid id)

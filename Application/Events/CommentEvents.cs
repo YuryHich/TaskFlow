@@ -6,7 +6,8 @@ public sealed record CommentAddedEvent(
     Guid CommentId,
     Guid TaskId,
     Guid ProjectId,
-    Guid ActorUserId) : IAppEvent;
+    Guid ActorUserId,
+    IReadOnlyList<Guid> AudienceUserIds) : IAppEvent;
 
 public sealed record CommentUpdatedEvent(
     Guid EventId,
@@ -14,7 +15,8 @@ public sealed record CommentUpdatedEvent(
     Guid CommentId,
     Guid TaskId,
     Guid ProjectId,
-    Guid ActorUserId) : IAppEvent;
+    Guid ActorUserId,
+    IReadOnlyList<Guid> AudienceUserIds) : IAppEvent;
 
 public sealed record CommentDeletedEvent(
     Guid EventId,
@@ -22,4 +24,5 @@ public sealed record CommentDeletedEvent(
     Guid CommentId,
     Guid TaskId,
     Guid ProjectId,
-    Guid ActorUserId) : IAppEvent;
+    Guid ActorUserId,
+    IReadOnlyList<Guid> AudienceUserIds) : IAppEvent;

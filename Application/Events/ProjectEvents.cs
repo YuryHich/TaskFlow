@@ -6,13 +6,16 @@ public sealed record ProjectCreatedEvent(
     Guid ProjectId,
     Guid OwnerId,
     Guid ActorUserId,
-    string Name) : IAppEvent;
+    string Name,
+    IReadOnlyList<Guid> AudienceUserIds) : IAppEvent;
 
 public sealed record ProjectUpdatedEvent(
     Guid EventId,
     DateTime OccurredAt,
     Guid ProjectId,
-    Guid ActorUserId) : IAppEvent;
+    Guid ActorUserId,
+    string Name,
+    IReadOnlyList<Guid> AudienceUserIds) : IAppEvent;
 
 public sealed record ProjectDeletedEvent(
     Guid EventId,

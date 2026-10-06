@@ -10,7 +10,8 @@ Backend-система управления проектами и задачам
 - EF Core + PostgreSQL (Docker + pgAdmin)
 - Redis: cache-aside (`IDistributedCache`), в тестах — in-memory
 - RabbitMQ + MassTransit **8.3.6** (не v9: коммерческая лицензия)
-- SignalR: хаб `/hubs/notifications`, JWT; доставка аудитории через очередь `taskflow-notifications`
+- Kafka (KRaft): topic `taskflow.events`, аналитика отдельно от доставки тостов
+- SignalR: хаб `/hubs/notifications` в процессе Notification (`:5032`); контракт `Notify` прежний
 - React + TypeScript + Vite SPA (`web/`), TanStack Query
 - JWT Bearer (HS256): реализация в Infrastructure, use cases в Application
 - `IPasswordHasher<User>`, FluentValidation, Mapster
@@ -22,7 +23,8 @@ Backend-система управления проектами и задачам
 
 1. Инфраструктура: `docker compose up -d` из корня репозитория  
    Postgres `5432`, pgAdmin `http://localhost:5050`, Redis `6379`, Redis Insight `http://localhost:5540`,  
-   RabbitMQ AMQP `5672`, Management UI `http://localhost:15672` (логин `taskflow`, пароль как `RABBITMQ_DEFAULT_PASS` в compose, по умолчанию `password`).  
+   RabbitMQ AMQP `5672`, Management UI `http://localhost:15672` (логин `taskflow`, пароль как `RABBITMQ_DEFAULT_PASS` в compose, по умолчанию `password`),  
+   Kafka `localhost:9092` (топик `taskflow.events`, 3 partition; внутри сети брокера — `taskflow-kafka:19092`). Логи брокера не вынесены в volume: образ пишет их от пользователя без прав на Docker volume, поэтому пересоздание контейнера стирает топик, а `taskflow-kafka-init` создаёт его заново. Логи брокера живут внутри контейнера: том не смонтирован, потому что образ `apache/kafka` пишет их от пользователя без прав на Docker volume.  
    В Insight хост Redis — `taskflow-redis`, порт `6379` (не `localhost`).
 2. Секреты API (Development, User Secrets, не коммитятся):
 
@@ -34,25 +36,46 @@ dotnet user-secrets set "RabbitMQ:Password" "<тот же пароль, что R
 
 `RabbitMQ:Password` должен совпадать с паролем брокера, иначе MassTransit получит `ACCESS_REFUSED`. Host/user/vhost — в `appsettings.json`.
 
-Строка Redis по умолчанию в `appsettings.json`: `localhost:6379,abortConnect=false,connectTimeout=1000`. API стартует и без Redis (кэш miss, REST жив). Без RabbitMQ в Development шина не поднимется (REST может слушать порт, realtime и audit — нет).
+Строка Redis по умолчанию в `appsettings.json`: `localhost:6379,abortConnect=false,connectTimeout=1000`. API стартует и без Redis (кэш miss, REST жив). Без RabbitMQ в Development шина не поднимется (REST может слушать порт, realtime и audit — нет). Без Kafka REST тоже жив: publish в топик логируется и пропускается.
 
-3. API: `dotnet run --project API --launch-profile http` → `http://localhost:5031`  
-   Swagger: `http://localhost:5031/swagger`
+Вторая база `TaskFlowAnalytics` создаётся скриптом `docker/init-extra-dbs.sql`, но **только на пустом** volume Postgres. Если `taskflow_pgdata` уже существует:
+
+```text
+docker exec -it taskflow-postgres psql -U postgres -c "CREATE DATABASE \"TaskFlowAnalytics\";"
+```
+
+3. Процессы (три `dotnet run`, секреты `Jwt:Key` и `RabbitMQ:Password` общие — у Analytics и Notification тот же User Secrets id, что у API):
+
+```text
+dotnet run --project API --launch-profile http            → http://localhost:5031
+dotnet run --project Analytics --launch-profile http      → http://localhost:5040
+dotnet run --project Notification --launch-profile http   → http://localhost:5032
+```
+
+Swagger API: `http://localhost:5031/swagger`. В Development хаб на API не слушает (`/hubs` на `:5031` → 404). Тосты идут в Notification. Audit остаётся consumer'ом внутри API.
 
 4. Фронт: `npm install` (один раз) и `npm run dev` в `web/` → `http://localhost:5173`  
-   Vite проксирует `/api` и `/hubs` на API (WebSocket включён). Пустой `VITE_API_URL` в `.env.example` — same-origin через proxy. CORS на API разрешает прямой origin `http://localhost:5173`, если proxy не используете.
+   Vite: `/api/analytics` → `:5040`, остальные `/api` → `:5031`, `/hubs` → `:5032` (WebSocket). Пустой `VITE_API_URL` — same-origin через proxy. Не задавайте `VITE_API_URL` на прямой порт API: аналитика и хаб обойдут прокси. CORS разрешает прямой origin `http://localhost:5173`, если proxy не используете.
 
    Если путь репозитория содержит `#` (например `D:\C#\...`), `npm run dev` поднимает Vite через junction без `#` (`resolve.preserveSymlinks`). Встроенный браузер Cursor может отдавать 404 на `/@vite/client` — откройте тот же URL в обычном Chrome или соберите превью: `npm run build` и `npm run preview` (`http://localhost:4173`).
 
 Access token в памяти, refresh в `sessionStorage`. Через ~14 минут клиент сам обновляет access (`POST /api/auth/refresh`, ротация). F5 восстанавливает сессию. Два пользователя — два окна/инкогнито.
 
-Миграции уже в репозитории. Если база пустая:  
-`dotnet ef database update --project Infrastructure --startup-project API`
+Миграции уже в репозитории. Если база пустая:
 
-Тесты (нужен поднятый Postgres из compose; Redis и RabbitMQ **не** нужны: в `Testing` кэш in-memory, MassTransit InMemory; dev-база `TaskFlowDB` не используется):
+```text
+dotnet ef database update --project Infrastructure --startup-project API
+dotnet user-secrets set "ConnectionStrings:Analytics" "Host=localhost;Port=5432;Database=TaskFlowAnalytics;Username=postgres;Password=password" --project API
+dotnet ef database update --project Analytics --startup-project Analytics
+```
+
+Секрет `ConnectionStrings:Analytics` пишется в тот же User Secrets store, что и API (`--project API` или `--project Analytics` — id один).
+
+Тесты (нужен поднятый Postgres из compose; Redis, RabbitMQ и Kafka **не** нужны: в `Testing` кэш in-memory, MassTransit InMemory, Kafka publisher — no-op, хаб SignalR in-process в API; dev-база `TaskFlowDB` не используется):
 
 ```text
 dotnet test API.Tests/API.Tests.csproj
+dotnet test Analytics.Tests/Analytics.Tests.csproj
 ```
 
 Скрипты Windows: `scripts/start-apps.cmd` (Chrome, Cursor, VS Code, Spotify, WireGuard, Docker Desktop), `scripts/start-taskflow.cmd` (compose + API + Vite + окна логина и админок).
@@ -138,90 +161,41 @@ dotnet test API.Tests/API.Tests.csproj
 
 **Шина (project / task / comment):** после успешного сохранения `BusBridgeHandler` делает `Publish`. Две очереди (fan-out, не competing consumers):
 
-- `taskflow-notifications` → `NotificationConsumer` → прежняя аудитория SignalR (`Clients.Users`)
-- `taskflow-audit` → `AuditConsumer` → таблица `AuditLogs` (unique `EventId`, повтор доставки не плодит строки)
+- `taskflow-notifications` → процесс Notification (`:5032`) → SignalR. В `Testing` тот же consumer остаётся внутри API, чтобы `dotnet test` не требовал второй хост
+- `taskflow-audit` → `AuditConsumer` в API → таблица `AuditLogs` (unique `EventId`)
 
-Контракт хаба не менялся. Consumer и хаб в **одном** хосте — учебный backplane, не выигрыш latency.
+Контракт хаба не менялся. В Development аудитория считается в API **до** publish (`AudienceUserIds` на каждом событии); Notification только рассылает `Clients.Users` и в Postgres не ходит.
 
-**Dual-write:** Postgres уже закоммичен, затем publish. Если Rabbit недоступен, HTTP-ответ всё равно успешен, тоста и строки аудита может не быть. Outbox в этом спринте не внедряли.
+**Dual-write:** Postgres уже закоммичен, затем независимо Rabbit и Kafka. Если брокер недоступен, HTTP-ответ всё равно успешен. Outbox не внедрялся.
 
-MassTransit **8.3.6** (Apache 2.0). v9 требует лицензию (`MT_LICENSE`) — в pet-project не используем.
+### Sprint 7–8 — Kafka, Analytics, Notification
 
-`GET /api/audit?take=50` — только Admin/Manager. Пароль брокера — User Secrets `RabbitMQ:Password`, тот же, что у контейнера.
+`KafkaBridgeHandler` пишет те же 9 событий (не теги) в topic `taskflow.events`. Key: `projectId` для проектов, `taskId` для задач и комментариев. Envelope: `eventId`, `eventType` (`task.created` и т.д.), `occurredAt`, `version`, `payload`.
 
-В тестах (`Environment=Testing`) транспорт InMemory; живой RabbitMQ для `dotnet test` не нужен.
+Analytics (`:5040`) — отдельный процесс и база `TaskFlowAnalytics`. Consumer group `taskflow-analytics`, commit offset после `SaveChanges`. Факты по `TaskId` / `ProjectId`, не счётчики `++`. Повтор `EventId` не меняет цифры. `GET /api/analytics/summary` и `/projects` — только Admin/Manager. Страница `/analytics` в SPA (staff). Комментарии в топике пропускаются.
+
+Notification (`:5032`) слушает только очередь `taskflow-notifications`. В Development API эту очередь не потребляет (иначе competing consumers).
+
+MassTransit **8.3.6** (Apache 2.0). `GET /api/audit?take=50` — только Admin/Manager. Пароль брокера — User Secrets `RabbitMQ:Password`, тот же, что у контейнера. В `Testing` живой RabbitMQ и Kafka для `dotnet test` не нужны.
 
 ```text
-                    Client
-              REST /          SignalR
-                │                ▲
-                ▼                │
-               API               │
-                │                │
-         ┌──────┼──────┐         │
-         ▼      ▼      ▼         │
-     Postgres Redis  Event       │
-                     Publisher   │
-                         │       │
-                    MassTransit  │
-                         │       │
-                      RabbitMQ   │
-                    /          \ │
-                   ▼            ▼
-            notifications     audit
-                   │            │
-                   ▼            ▼
-                SignalR      AuditLogs
+React --/api--> API :5031 --Rabbit--> Notification :5032 --SignalR--> React
+                 |     \\--Rabbit--> AuditLogs (тот же API)
+                 |     \\--Kafka--> Analytics :5040 --> TaskFlowAnalytics
+                 +--> TaskFlowDB, Redis
 ```
 
 ## Что будет дальше
 
-### Микросервисы и gRPC
+CRUD (users / projects / tasks) остаётся одним процессом. Отдельные сервисы — только side effect и read model.
 
-- Выделение bounded contexts: User, Task, Notification и другие
-- gRPC между сервисами
-- REST как внешний API (gateway)
+Уже сделано в Sprint 7–8: Kafka + Analytics (`:5040`, база `TaskFlowAnalytics`) и Notification (`:5032`, без своей БД). Audit по-прежнему в API. Нет gRPC, gateway, outbox и разрезания CRUD. Dockerfile'ы процессов не входят в эти спринты: API, Analytics и Notification запускаются через `dotnet run`.
 
-### Kafka и аналитика
+### Replay аналитики
 
-- Публикация событий в Kafka
-- Отдельный Analytics Service: статистика по задачам, пользователям и проектам
+Цифры eventual consistent. Проверка догона:
 
-### Инфраструктура
+1. Остановить Analytics, создать задачи через API, запустить Analytics снова — consumer group продолжит с сохранённого offset.
+2. Пересобрать с начала: остановить Analytics, в `TaskFlowAnalytics` выполнить `TRUNCATE "ProcessedEvents", "TaskFacts", "ProjectFacts";`, в `Analytics/appsettings.json` выставить `Kafka:ResetToBeginning` = `true`, запустить, дождаться цифр, вернуть флаг в `false`. Иначе каждый старт будет читать топик с нуля (идемпотентность не задвоит факты, но сделает старт долгим).
 
-- Dockerfile сервисов, Compose на всю систему (сейчас в compose Postgres, pgAdmin, Redis, Insight, RabbitMQ; API — `dotnet run`)
-- Kafka и сервисы в контейнерах
-- Настройки через переменные окружения, health checks, базовый logging / monitoring
-
-### Целевая схема
-
-```text
-                         Client
-                           │
-                           ▼
-                      API / Gateway
-                           │
-             ┌─────────────┼─────────────┐
-             ▼             ▼             ▼
-        User Service   Task Service   Project Service
-             │             │             │
-             └─────────────┼─────────────┘
-                           │
-                         gRPC
-                           │
-                    ┌──────┴──────┐
-                    ▼             ▼
-                RabbitMQ        Redis
-                    │
-             ┌──────┴──────┐
-             ▼             ▼
-       Notification     Audit Service
-          Service
-
-                    Kafka
-                      │
-                      ▼
-               Analytics Service
-                      │
-                  PostgreSQL
-```
+Подробный разбор файлов, флоу и теория — в `отчёт по спринтам 7-8.md`.

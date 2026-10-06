@@ -9,15 +9,17 @@ export default defineConfig({
   server: {
     port: 5173,
     proxy: {
+      "/api/analytics": { target: "http://localhost:5040", changeOrigin: true },
       "/api": { target: "http://localhost:5031", changeOrigin: true },
-      "/hubs": { target: "http://localhost:5031", changeOrigin: true, ws: true },
+      "/hubs": { target: "http://localhost:5032", changeOrigin: true, ws: true },
     },
   },
   preview: {
     port: 4173,
     proxy: {
+      "/api/analytics": { target: "http://localhost:5040", changeOrigin: true },
       "/api": { target: "http://localhost:5031", changeOrigin: true },
-      "/hubs": { target: "http://localhost:5031", changeOrigin: true, ws: true },
+      "/hubs": { target: "http://localhost:5032", changeOrigin: true, ws: true },
     },
   },
 });

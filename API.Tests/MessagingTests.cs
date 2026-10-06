@@ -45,7 +45,9 @@ public class MessagingTests
                 ProjectId: created.Project.Id,
                 ActorUserId: rows[0].ActorUserId ?? Guid.Empty,
                 Title: created.Task.Title,
-                AssigneeIds: created.Task.AssigneeIds));
+                AssigneeIds: created.Task.AssigneeIds,
+                Status: created.Task.Status,
+                AudienceUserIds: []));
         }
 
         await Task.Delay(400);

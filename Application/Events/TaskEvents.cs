@@ -1,3 +1,5 @@
+using Domain.Models;
+
 namespace Application.Events;
 
 public sealed record TaskCreatedEvent(
@@ -7,14 +9,19 @@ public sealed record TaskCreatedEvent(
     Guid ProjectId,
     Guid ActorUserId,
     string Title,
-    IReadOnlyList<Guid> AssigneeIds) : IAppEvent;
+    IReadOnlyList<Guid> AssigneeIds,
+    TaskState Status,
+    IReadOnlyList<Guid> AudienceUserIds) : IAppEvent;
 
 public sealed record TaskUpdatedEvent(
     Guid EventId,
     DateTime OccurredAt,
     Guid TaskId,
     Guid ProjectId,
-    Guid ActorUserId) : IAppEvent;
+    Guid ActorUserId,
+    string Title,
+    TaskState Status,
+    IReadOnlyList<Guid> AudienceUserIds) : IAppEvent;
 
 public sealed record TaskDeletedEvent(
     Guid EventId,
